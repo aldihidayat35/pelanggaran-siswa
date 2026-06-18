@@ -2,12 +2,13 @@
 <div id="kt_header" class="header align-items-stretch">
     <!--begin::Brand-->
     <div class="header-brand">
-        <a href="{{ route('admin.dashboard') }}">
+        <a href="{{ route('admin.dashboard') }}" class="d-flex align-items-center gap-3 text-decoration-none">
             @if(app_setting('app_logo'))
-                <img alt="Logo" src="{{ asset('storage/' . app_setting('app_logo')) }}" class="h-25px h-lg-25px"/>
-            @else
-                <span class="text-white fw-bold fs-4">{{ app_setting('app_name', config('app.name')) }}</span>
+                <img alt="Logo" src="{{ asset('storage/' . app_setting('app_logo')) }}" class="h-30px w-auto"/>
             @endif
+            <span class="text-white fw-bold fs-5 text-truncate" style="max-width: 140px;" title="{{ app_setting('app_name', config('app.name')) }}">
+                {{ app_setting('app_name', config('app.name')) }}
+            </span>
         </a>
 
         <div id="kt_aside_toggle"

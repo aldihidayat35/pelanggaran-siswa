@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="light">
+<head>
+    <base href="http://127.0.0.1:8000/"/>
+    <title>Login - Starter Pack</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="csrf-token" content="duUGmiqn5UI7VKw8M7e5NCR2SChXP4x9zTVuBFla"/>
+    <link rel="shortcut icon" href=""/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700"/>
+    <link href="assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css"/>
+    <link href="assets/css/style.bundle.css" rel="stylesheet" type="text/css"/>
+</head>
+<body id="kt_body" class="auth-bg bgi-size-cover bgi-attachment-fixed bgi-position-center bgi-no-repeat">
+    <!--begin::Theme mode setup on page load-->
+<script>
+    var defaultThemeMode = "light";
+    var themeMode;
+    if (document.documentElement) {
+        if (document.documentElement.hasAttribute("data-bs-theme-mode")) {
+            themeMode = document.documentElement.getAttribute("data-bs-theme-mode");
+        } else {
+            if (localStorage.getItem("data-bs-theme") !== null) {
+                themeMode = localStorage.getItem("data-bs-theme");
+            } else {
+                themeMode = defaultThemeMode;
+            }
+        }
+        if (themeMode === "system") {
+            themeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-bs-theme", themeMode);
+    }
+</script>
+<!--end::Theme mode setup on page load-->
+
+    <div class="d-flex flex-column flex-root">
+        <div class="d-flex flex-column flex-column-fluid flex-lg-row">
+            <!--begin::Aside-->
+            <div class="d-flex flex-center w-lg-50 pt-15 pt-lg-0 px-10">
+                <div class="d-flex flex-center flex-lg-start flex-column">
+                    <a href="http://127.0.0.1:8000" class="mb-7">
+                                                    <h1 class="text-gray-900 fw-bolder" style="font-size: 3rem;">
+                                Starter Pack
+                            </h1>
+                                            </a>
+                    <h2 class="text-gray-900 fw-bold m-0" style="font-size: 1.5rem;">
+                        Sistem Manajemen Aplikasi
+                    </h2>
+                </div>
+            </div>
+            <!--end::Aside-->
+
+            <!--begin::Body-->
+            <div class="d-flex flex-column-fluid flex-lg-row-auto justify-content-center justify-content-lg-end p-12 p-lg-20">
+                <div class="bg-body d-flex flex-column align-items-stretch flex-center rounded-4 w-md-600px p-20">
+                    <div class="d-flex flex-center flex-column flex-column-fluid px-lg-10 pb-15 pb-lg-20">
+                        <form class="form w-100" method="POST" action="http://127.0.0.1:8000/login">
+    <input type="hidden" name="_token" value="duUGmiqn5UI7VKw8M7e5NCR2SChXP4x9zTVuBFla" autocomplete="off">
+    <div class="text-center mb-11">
+        <h1 class="text-gray-900 fw-bolder mb-3">Sign In</h1>
+        <div class="text-gray-500 fw-semibold fs-6">Masuk ke panel admin</div>
+    </div>
+
+    
+    
+    <div class="fv-row mb-8">
+        <input type="email" placeholder="Email" name="email" autocomplete="off"
+            class="form-control bg-transparent "
+            value="" required autofocus/>
+    </div>
+
+    <div class="fv-row mb-8">
+        <input type="password" placeholder="Password" name="password" autocomplete="off"
+            class="form-control bg-transparent " required/>
+    </div>
+
+    <div class="d-flex flex-stack flex-wrap gap-3 fs-base fw-semibold mb-8">
+        <div>
+            <label class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="remember" />
+                <span class="form-check-label fw-semibold text-gray-700 fs-base ms-1">Ingat Saya</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="d-grid mb-10">
+        <button type="submit" class="btn btn-primary">
+            <span class="indicator-label">Sign In</span>
+        </button>
+    </div>
+</form>
+                    </div>
+                    <div class="d-flex flex-stack px-lg-10">
+                        <div class="d-flex fw-semibold text-primary fs-base gap-5">
+                            <span>&copy; 2026 Starter Pack</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--end::Body-->
+        </div>
+    </div>
+
+    <script src="assets/plugins/global/plugins.bundle.js"></script>
+    <script src="assets/js/scripts.bundle.js"></script>
+</body>
+</html>

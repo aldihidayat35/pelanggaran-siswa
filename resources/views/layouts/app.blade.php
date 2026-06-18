@@ -12,6 +12,113 @@
     <link href="assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css"/>
     <link href="assets/css/style.bundle.css" rel="stylesheet" type="text/css"/>
     @stack('custom-css')
+    
+    <style>
+        /* Global soft background for admin page content */
+        [data-bs-theme="light"] #kt_content {
+            background-color: #f8fafc !important;
+            background-image: radial-gradient(rgba(15, 23, 42, 0.025) 1.2px, transparent 1.2px) !important;
+            background-size: 24px 24px !important;
+        }
+        [data-bs-theme="dark"] #kt_content {
+            background-color: #0b0f19 !important;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.015) 1.2px, transparent 1.2px) !important;
+            background-size: 24px 24px !important;
+        }
+
+        /* Modern Sidebar (Aside) styles */
+        .aside {
+            background-color: #0b0f19 !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.03) !important;
+        }
+        .header-brand {
+            background-color: #0b0f19 !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.03) !important;
+        }
+        .header-brand .text-white {
+            color: #ffffff !important;
+        }
+        
+        /* Modernized Sidebar User Profile Widget */
+        .aside-toolbar .aside-user {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            border-radius: 12px;
+            margin: 15px 20px;
+            padding: 12px 15px !important;
+            border-top: none !important;
+            display: flex;
+            align-items: center;
+            justify-content: start !important;
+        }
+        .aside-toolbar .aside-user-info {
+            text-align: left !important;
+        }
+        
+        /* Modern Sidebar Menu List styling */
+        .aside-menu .menu-item .menu-link {
+            border-radius: 8px !important;
+            margin: 3px 15px !important;
+            padding-left: 12px !important;
+            transition: all 0.25s ease;
+        }
+        .aside-menu .menu-item .menu-link.active {
+            background-color: rgba(11, 87, 208, 0.08) !important;
+            border-left: 3px solid #0b57d0 !important;
+            color: #ffffff !important;
+        }
+        .aside-menu .menu-item .menu-link:hover:not(.active) {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            color: #ffffff !important;
+        }
+        .aside-menu .menu-item .menu-link .menu-icon i {
+            color: #94a3b8 !important;
+            transition: color 0.25s ease;
+        }
+        .aside-menu .menu-item .menu-link.active .menu-icon i,
+        .aside-menu .menu-item .menu-link:hover .menu-icon i {
+            color: #3b82f6 !important;
+        }
+        .aside-menu .menu-heading {
+            color: #4b5563 !important;
+            font-size: 0.725rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 1.2px;
+            padding-left: 27px !important;
+            margin-top: 20px !important;
+            margin-bottom: 5px !important;
+            text-transform: uppercase;
+        }
+        .aside-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.03) !important;
+            padding: 15px 20px !important;
+        }
+        .aside-footer .btn-danger {
+            background-color: rgba(239, 68, 68, 0.1) !important;
+            color: #f87171 !important;
+            border: 1px solid rgba(239, 68, 68, 0.15) !important;
+            transition: all 0.25s ease;
+        }
+        .aside-footer .btn-danger:hover {
+            background-color: #ef4444 !important;
+            color: #ffffff !important;
+        }
+
+        /* Minimized aside styling */
+        body[data-kt-aside-minimize="on"] .aside-toolbar .aside-user {
+            margin: 15px 10px;
+            padding: 10px !important;
+            justify-content: center !important;
+        }
+        body[data-kt-aside-minimize="on"] .aside-toolbar .aside-user-info {
+            display: none !important;
+        }
+        body[data-kt-aside-minimize="on"] .aside-menu .menu-item .menu-link {
+            margin: 3px 5px !important;
+            padding-left: 0 !important;
+            justify-content: center !important;
+        }
+    </style>
 </head>
 <body id="kt_body" data-kt-app-page-loading-enabled="true" data-kt-app-page-loading="on" class="aside-enabled">
     @include('layouts.partials._theme-mode')

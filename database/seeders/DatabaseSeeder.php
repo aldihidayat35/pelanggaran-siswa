@@ -40,5 +40,13 @@ class DatabaseSeeder extends Seeder
 
         // Seed app settings
         $this->call(AppSettingSeeder::class);
+
+        // Seed pelanggaran data
+        $this->call([
+            KategoriPelanggaranSeeder::class,
+            PelanggaranSeeder::class,
+            SiswaSeeder::class,
+            PelanggaranSiswaSeeder::class,
+        ]);
     }
 }

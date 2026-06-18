@@ -1,0 +1,26 @@
+{
+  "sessionId": "guest_watoken5c3881bffcc27",
+  "sessionName": "Guest Session FFCC27",
+  "phoneNumber": "6287782292990",
+  "jid": "6287782292990:4@s.whatsapp.net",
+  "pushName": "Ojol Magang",
+  "status": "connected",
+  "apiBaseUrl": "http://jokiin35.space/api",
+  "apiToken": "WATOKEN-C82B724CE4762D0D-2026",
+  "sendMessageEndpoint": "POST /api/send-message",
+  "examplePayload": {
+    "session_id": "guest_watoken5c3881bffcc27",
+    "to": "6287782292990",
+    "message": "Halo dari aplikasi lain"
+  },
+  "exampleCurl": "curl -X POST \"http://jokiin35.space/api/send-message\" \\\n  -H \"Authorization: Bearer WATOKEN-C82B724CE4762D0D-2026\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n  \"session_id\": \"guest_watoken5c3881bffcc27\",\n  \"to\": \"6287782292990\",\n  \"message\": \"Halo dari aplikasi lain\"\n}'",
+  "createdAt": "2026-06-16T13:43:24.085Z",
+  "connectedAt": "2026-06-16T13:44:14.045Z",
+  "lastSeen": "2026-06-16T13:45:04.126Z",
+  "expiredAt": "2026-06-16T13:53:24.085Z",
+  "deviceInfo": {
+    "id": "6287782292990:4@s.whatsapp.net",
+    "name": "Ojol Magang",
+    "lid": "252544647442498:4@lid"
+  }
+}

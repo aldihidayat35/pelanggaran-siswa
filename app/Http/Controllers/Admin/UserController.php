@@ -16,25 +16,107 @@ class UserController extends Controller
     {
         $query = User::query();
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
+        if ($request->ajax()) {
+            $totalRecords = User::count();
+
+            if ($request->filled('role')) {
+                $query->where('role', $request->role);
+            }
+
+            if ($request->filled('status')) {
+                $query->where('is_active', $request->status === 'active');
+            }
+
+            if ($request->filled('search.value')) {
+                $search = $request->input('search.value');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+
+            $filteredRecords = $query->count();
+
+            // Handle ordering
+            if ($request->filled('order.0.column')) {
+                $colIndex = $request->input('order.0.column');
+                $colDir = $request->input('order.0.dir', 'desc');
+                $columns = ['id', 'name', 'role', 'is_active', 'created_at', 'id'];
+                $colName = $columns[$colIndex] ?? 'id';
+                $query->orderBy($colName, $colDir);
+            } else {
+                $query->latest();
+            }
+
+            $start = $request->input('start', 0);
+            $length = $request->input('length', 10);
+            $users = $query->skip($start)->take($length)->get();
+
+            $data = [];
+            foreach ($users as $index => $user) {
+                $editUrl = route('admin.users.edit', $user);
+                $deleteUrl = route('admin.users.destroy', $user);
+                $csrf = csrf_field();
+                $methodDelete = method_field('DELETE');
+                $isSelf = $user->id === auth()->id();
+
+                $avatarHtml = '';
+                if ($user->avatar) {
+                    $avatarHtml = '<div class="symbol-label"><img src="' . asset('storage/' . $user->avatar) . '" alt="' . e($user->name) . '" class="w-100"/></div>';
+                } else {
+                    $avatarHtml = '<div class="symbol-label fs-3 bg-light-primary text-primary">' . strtoupper(substr($user->name, 0, 1)) . '</div>';
+                }
+
+                $deleteActionHtml = '';
+                if (!$isSelf) {
+                    $deleteActionHtml = '
+                        <div class="menu-item px-3">
+                            <form method="POST" action="' . $deleteUrl . '"
+                                onsubmit="return confirm(\'Yakin ingin menghapus user ini?\')">
+                                ' . $csrf . '
+                                ' . $methodDelete . '
+                                <button type="submit" class="menu-link px-3 border-0 bg-transparent text-danger w-100 text-start">Hapus</button>
+                            </form>
+                        </div>';
+                }
+
+                $data[] = [
+                    'DT_RowIndex' => $start + $index + 1,
+                    'user' => '
+                        <div class="d-flex align-items-center">
+                            <div class="symbol symbol-circle symbol-50px overflow-hidden me-3">' . $avatarHtml . '</div>
+                            <div class="d-flex flex-column">
+                                <span class="text-gray-800 mb-1 fw-bold">' . e($user->name) . '</span>
+                                <span class="text-muted fs-7">' . e($user->email) . '</span>
+                            </div>
+                        </div>',
+                    'role' => '<span class="badge badge-light-' . ($user->role === 'admin' ? 'danger' : 'primary') . '">' . ucfirst($user->role) . '</span>',
+                    'status' => '<span class="badge badge-light-' . ($user->is_active ? 'success' : 'secondary') . '">' . ($user->is_active ? 'Aktif' : 'Nonaktif') . '</span>',
+                    'created_at' => $user->created_at->format('d M Y'),
+                    'action' => '
+                        <a href="#" class="btn btn-light btn-active-light-primary btn-sm"
+                            data-kt-menu-trigger="click" data-kt-menu-placement="bottom-end">
+                            Aksi
+                            <i class="ki-duotone ki-down fs-5 ms-1"></i>
+                        </a>
+                        <div class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-gray-600 menu-state-bg-light-primary fw-semibold fs-7 w-125px py-4"
+                            data-kt-menu="true">
+                            <div class="menu-item px-3">
+                                <a href="' . $editUrl . '" class="menu-link px-3">Edit</a>
+                            </div>' . $deleteActionHtml . '
+                        </div>'
+                ];
+            }
+
+            return response()->json([
+                'draw' => intval($request->draw),
+                'recordsTotal' => $totalRecords,
+                'recordsFiltered' => $filteredRecords,
+                'data' => $data
+            ]);
         }
 
-        if ($request->filled('role')) {
-            $query->where('role', $request->role);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        $users = $query->latest()->paginate(10)->withQueryString();
-
-        return view('admin.users.index', compact('users'));
+        return view('admin.users.index');
     }
 
     public function create()

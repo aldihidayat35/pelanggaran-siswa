@@ -52,6 +52,127 @@
 
         <div class="menu-item pt-5">
             <div class="menu-content">
+                <span class="menu-heading fw-bold text-uppercase fs-7">Pelanggaran Siswa</span>
+            </div>
+        </div>
+
+        <!--begin::Menu item - Data Siswa-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('pelanggaran-siswa.siswa.*') ? 'here show' : '' }}">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>
+                </span>
+                <span class="menu-title">Data Siswa</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.siswa.index') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.siswa.index') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Daftar Siswa</span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.siswa.create') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.siswa.create') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Tambah Siswa</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end::Menu item-->
+
+        <!--begin::Menu item - Kategori Pelanggaran-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('pelanggaran-siswa.kategori.*') ? 'here show' : '' }}">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-category fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                </span>
+                <span class="menu-title">Kategori Pelanggaran</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.kategori.index') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.kategori.index') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Daftar Kategori</span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.kategori.create') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.kategori.create') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Tambah Kategori</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end::Menu item-->
+
+        <!--begin::Menu item - Jenis Pelanggaran-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('pelanggaran-siswa.pelanggaran.*') ? 'here show' : '' }}">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-shield-cross fs-2"><span class="path1"></span><span class="path2"></span></i>
+                </span>
+                <span class="menu-title">Jenis Pelanggaran</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.pelanggaran.index') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.pelanggaran.index') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Daftar Pelanggaran</span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.pelanggaran.create') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.pelanggaran.create') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Tambah Pelanggaran</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end::Menu item-->
+
+        <!--begin::Menu item - Riwayat Pelanggaran-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('pelanggaran-siswa.riwayat.*') ? 'here show' : '' }}">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-note-2 fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                </span>
+                <span class="menu-title">Riwayat Pelanggaran</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.riwayat.index') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.riwayat.index') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Daftar Riwayat</span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.riwayat.create') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.riwayat.create') }}">
+                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                        <span class="menu-title">Catat Pelanggaran</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end::Menu item-->
+
+        <!--begin::Menu item - Laporan Pelanggaran-->
+        <div class="menu-item">
+            <a class="menu-link {{ request()->routeIs('pelanggaran-siswa.laporan.*') ? 'active' : '' }}" href="{{ route('pelanggaran-siswa.laporan.index') }}">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-chart-simple fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                </span>
+                <span class="menu-title">Laporan</span>
+            </a>
+        </div>
+        <!--end::Menu item-->
+
+        <div class="menu-item pt-5">
+            <div class="menu-content">
                 <span class="menu-heading fw-bold text-uppercase fs-7">Pengaturan</span>
             </div>
         </div>
