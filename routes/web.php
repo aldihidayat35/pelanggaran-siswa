@@ -79,4 +79,11 @@ Route::middleware(['auth', 'admin'])->prefix('pelanggaran-siswa')->name('pelangg
 // Public Laporan Siswa (WhatsApp link targets this)
 Route::get('/laporan-siswa/{token}', [\App\Http\Controllers\PublicLaporanController::class, 'show'])->name('pelanggaran-siswa.public-laporan');
 
+// Face Recognition (LBPH) Routes for Guru/Admin
+Route::middleware(['auth'])->group(function () {
+    Route::get('/guru/attendance', [\App\Http\Controllers\Guru\FaceRecognitionController::class, 'index'])->name('guru.attendance');
+    Route::post('/guru/face-recognition/scan', [\App\Http\Controllers\Guru\FaceRecognitionController::class, 'scan'])->name('guru.face-recognition.scan');
+    Route::post('/guru/pelanggaran-siswa/store-from-face', [\App\Http\Controllers\Guru\FaceRecognitionController::class, 'storeFromFace'])->name('guru.pelanggaran-siswa.store-from-face');
+});
+
 
