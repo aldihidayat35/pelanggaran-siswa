@@ -131,6 +131,26 @@
                             </span>
                             <span class="badge fw-bold fs-7 px-3 py-2" id="student_status_badge">-</span>
                         </div>
+
+                        <!-- Match Strength (recognition confidence) -->
+                        <div class="w-100 mt-4" id="match_strength_container">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between mb-1">
+                                <label class="form-label fw-semibold fs-7 text-gray-600 mb-0">
+                                    <i class="ki-duotone ki-shield-search fs-7 me-1 text-primary"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
+                                    Match Strength
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge fw-bold fs-8 px-2 py-1 bg-secondary" id="result_match_level">-</span>
+                                    <span class="fw-bold fs-7 text-gray-700" id="result_match_percent">0%</span>
+                                </div>
+                            </div>
+                            <div class="progress bg-light-primary" style="height: 10px;">
+                                <div id="result_match_bar" class="progress-bar bg-secondary" role="progressbar" aria-label="Match strength" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <small class="text-muted fs-8 mt-1 d-block">
+                                Distance: <span id="result_distance">-</span>
+                            </small>
+                        </div>
                     </div>
 
                     <!-- Reset Button -->
@@ -249,6 +269,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const studentMajor = document.getElementById('student_major');
     const studentPoints = document.getElementById('student_points');
     const studentStatusBadge = document.getElementById('student_status_badge');
+    const resultMatchBar = document.getElementById('result_match_bar');
+    const resultMatchPercent = document.getElementById('result_match_percent');
+    const resultMatchLevel = document.getElementById('result_match_level');
+    const resultDistance = document.getElementById('result_distance');
     const formSiswaId = document.getElementById('form_siswa_id');
     const formCatatPelanggaran = document.getElementById('form_catat_pelanggaran');
     const selectPelanggaran = document.getElementById('select_pelanggaran');
@@ -520,6 +544,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // (top-level hasil normalisasi Service, atau fallback ke top_match.distance).
             const distance = res.distance ?? (res.top_match && res.top_match.distance) ?? 999;
             const matchStrength = res.match_strength ?? (res.top_match && res.top_match.match_strength) ?? 0;
+            const matchLevel = res.match_level ?? (res.top_match && res.top_match.match_level) ?? null;
             const siswa = res.siswa ?? null;
 
             if (studentId == null) {
@@ -527,8 +552,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            frameBuffer.push({ studentId: studentId, distance: distance, siswa: siswa, recognized: true });
+            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, siswa: siswa, recognized: true });
             if (frameBuffer.length > FRAME_BUFFER_SIZE) frameBuffer.shift();
+
+            // Live preview match strength dari frame terakhir (feedback real-time
+            // ke user). Setelah lock, lockStudentMatch akan override dengan
+            // rata-rata semua frame winner (lebih stabil).
+            updateMatchStrengthUI(matchStrength, distance, matchLevel);
 
             const vote = evaluateFrameBuffer();
             updateVotingStatus(vote);
@@ -553,9 +583,25 @@ document.addEventListener('DOMContentLoaded', function () {
         lastVotedStudentId = studentId;
 
         // Cari data siswa dari frame buffer
-        const winnerEntry = frameBuffer.find(f => f.studentId === studentId && f.siswa);
+        const winnerEntries = frameBuffer.filter(f => f.studentId === studentId && f.siswa);
+        const winnerEntry = winnerEntries[winnerEntries.length - 1] || null;
+        // Rata-rata match_strength dari semua frame winner (lebih stabil dari single frame)
+        const winnerStrengths = winnerEntries.map(e => e.matchStrength).filter(v => v != null && !isNaN(v));
+        const avgStrength = winnerStrengths.length
+            ? winnerStrengths.reduce((a, b) => a + b, 0) / winnerStrengths.length
+            : null;
+        const winnerDistances = winnerEntries.map(e => e.distance).filter(v => v != null && !isNaN(v));
+        const avgDistance = winnerDistances.length
+            ? winnerDistances.reduce((a, b) => a + b, 0) / winnerDistances.length
+            : null;
+        // match_level: pakai dari entry terakhir, fallback ke strict jika avg strength tinggi
+        let winnerLevel = winnerEntry && winnerEntry.matchLevel ? winnerEntry.matchLevel : null;
+        if (!winnerLevel && avgStrength != null) {
+            winnerLevel = avgStrength >= 0.9 ? 'strict' : (avgStrength >= 0.5 ? 'loose' : 'no_match');
+        }
+
         if (winnerEntry && winnerEntry.siswa) {
-            populateStudentUI(winnerEntry.siswa);
+            populateStudentUI(winnerEntry.siswa, avgStrength, avgDistance, winnerLevel);
         } else {
             // Fallback: scan endpoint tidak return data siswa lengkap.
             // Hal ini bisa terjadi jika signature Python berubah. Tampilkan error
@@ -565,8 +611,70 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Update visual indicator untuk match_strength (recognition confidence).
+    // - matchStrength: float 0.0–1.0 dari Python service, atau null/tidak ada.
+    // - distance: nilai distance mentah dari response (untuk label).
+    // - matchLevel: 'strict' | 'loose' | 'no_match' (opsional).
+    // Threshold warna:
+    //   >= 0.9  -> success (hijau, sangat yakin)
+    //   >= 0.5  -> warning (kuning, cukup yakin)
+    //   <  0.5  -> danger  (merah, rendah)
+    function updateMatchStrengthUI(matchStrength, distance, matchLevel) {
+        // Update bar
+        if (matchStrength == null || isNaN(matchStrength)) {
+            resultMatchPercent.innerText = '-';
+            resultMatchBar.style.width = '0%';
+            resultMatchBar.setAttribute('aria-valuenow', 0);
+            resultMatchBar.classList.remove('bg-success', 'bg-warning', 'bg-danger');
+            resultMatchBar.classList.add('bg-secondary');
+        } else {
+            const pct = Math.max(0, Math.min(100, Math.round(matchStrength * 100)));
+            resultMatchPercent.innerText = pct + '%';
+            resultMatchBar.style.width = pct + '%';
+            resultMatchBar.setAttribute('aria-valuenow', pct);
+
+            resultMatchBar.classList.remove('bg-secondary', 'bg-success', 'bg-warning', 'bg-danger');
+            if (matchStrength >= 0.9) {
+                resultMatchBar.classList.add('bg-success');
+            } else if (matchStrength >= 0.5) {
+                resultMatchBar.classList.add('bg-warning');
+            } else {
+                resultMatchBar.classList.add('bg-danger');
+            }
+        }
+
+        // Update distance label
+        if (distance != null && !isNaN(distance)) {
+            resultDistance.innerText = Number(distance).toFixed(1);
+        } else {
+            resultDistance.innerText = '-';
+        }
+
+        // Update level badge (STRICT / LOOSE / NO MATCH / -)
+        let levelText = '-';
+        let levelClass = 'bg-secondary';
+        if (matchLevel === 'strict') {
+            levelText = 'STRICT';
+            levelClass = 'bg-success';
+        } else if (matchLevel === 'loose') {
+            levelText = 'LOOSE';
+            levelClass = 'bg-warning';
+        } else if (matchLevel === 'no_match' || matchLevel === 'no-match' || matchLevel === 'nomatch') {
+            levelText = 'NO MATCH';
+            levelClass = 'bg-danger';
+        }
+        resultMatchLevel.innerText = levelText;
+        resultMatchLevel.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-secondary');
+        resultMatchLevel.classList.add(levelClass);
+    }
+
+    // Reset visual match strength indicator ke kondisi default (digunakan di reset).
+    function resetMatchStrengthUI() {
+        updateMatchStrengthUI(null, null, null);
+    }
+
     // Populate UI dengan data siswa
-    function populateStudentUI(siswa) {
+    function populateStudentUI(siswa, matchStrength, distance, matchLevel) {
         studentName.innerText = siswa.nama;
         studentClass.innerText = siswa.kelas;
         studentMajor.innerText = siswa.jurusan;
@@ -584,6 +692,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         studentStatusBadge.innerText = siswa.status_pembinaan;
         studentStatusBadge.className = `badge fw-bold fs-7 px-3 py-2 bg-light-${siswa.status_badge} text-${siswa.status_badge} border border-${siswa.status_badge} border-opacity-20`;
+
+        // Render match strength visual (progress bar + level badge + distance label).
+        // Nilai null/undefined akan di-render sebagai '-' dengan warna abu-abu.
+        updateMatchStrengthUI(matchStrength, distance, matchLevel);
 
         infoPlaceholder.classList.add('d-none');
         resultContainer.classList.remove('d-none');
@@ -626,6 +738,9 @@ document.addEventListener('DOMContentLoaded', function () {
         studentPhoto.src = '';
         studentPhoto.style.display = 'none';
         studentPhotoFallback.style.display = 'flex';
+
+        // Reset match strength indicator
+        resetMatchStrengthUI();
 
         // Reset form controls
         formCatatPelanggaran.reset();
