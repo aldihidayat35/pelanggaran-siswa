@@ -28,7 +28,7 @@ class FaceRecognitionController extends Controller
     /**
      * Show camera scan interface.
      */
-    public function index()
+    public function index(FaceRecognitionService $frService)
     {
         $this->authorizeRole();
         $pelanggaranList = Pelanggaran::where('status', 'Aktif')
@@ -36,7 +36,11 @@ class FaceRecognitionController extends Controller
             ->orderBy('nama_pelanggaran')
             ->get();
 
-        return view('guru.attendance.index', compact('pelanggaranList'));
+        // Ambil versi pipeline FR (v1/v2) dari /health untuk ditampilkan di view.
+        // Null jika service belum pernah dicek atau sedang down — UI harus handle null.
+        $pipelineVersion = $frService->fetchPipelineVersion();
+
+        return view('guru.attendance.index', compact('pelanggaranList', 'pipelineVersion'));
     }
 
     /**
