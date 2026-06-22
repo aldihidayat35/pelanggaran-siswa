@@ -52,6 +52,12 @@ Aplikasi ini memiliki 7 modul utama dengan fungsi sebagai berikut:
 * **Akses Publik Tanpa Login**: Halaman privat khusus yang dapat diakses oleh orang tua di luar modul admin melalui token rahasia unik (`/laporan-siswa/{token}`).
 * **Visual Mewah & Responsif**: Menampilkan rangkuman statistik poin kedisiplinan anak, info tindak lanjut sekolah, dan daftar kronologis pelanggaran secara mobile-friendly.
 
+### H. Face Recognition (Integrasi Identifikasi Wajah LBPH)
+* **Kamera Pemindai Real-time**: Halaman pencarian siswa otomatis menggunakan webcam (`/guru/attendance`) dengan animasi scanning HUD modern dan multi-frame voting (5 frame buffer, lock pada vote >= 3 dengan avg distance < 60).
+* **Deteksi Wajah Otomatis**: Frame video dikirim ke microservice Python Flask yang memproses frame dengan model Local Binary Patterns Histograms (LBPH) untuk memprediksi ID siswa.
+* **Auto-population**: Setelah siswa berhasil diidentifikasi, data profil, akumulasi poin, status pembinaan, dan foto siswa langsung dimuat ke form input pelanggaran secara real-time tanpa refresh halaman.
+* **Pengamanan Akses**: Fitur ini khusus diakses oleh pengguna dengan role `admin`, `guru`, atau `user` terdaftar.
+
 ---
 
 ## 2. Struktur Database (ERD)
@@ -184,7 +190,10 @@ pelanggaran-siswa/
 │   │   │   │   └── UserController.php          # Manajemen admin/user
 │   │   │   │
 │   │   │   ├── Auth/
-│   │   │   │   └── LoginController.php         # Login autentikasi
+│   │   │   │   └── LoginController.php         # Login autentikasi (dilengkapi auto-redirect guru)
+│   │   │   │
+│   │   │   ├── Guru/
+│   │   │   │   └── FaceRecognitionController.php   # Controller kamera & scan wajah siswa
 │   │   │   │
 │   │   │   └── PublicLaporanController.php     # Menampilkan riwayat laporan publik
 │   │   │
@@ -201,11 +210,12 @@ pelanggaran-siswa/
 │   │   └── WhatsAppLog.php             # Model log pengiriman WhatsApp
 │   │
 │   └── Services/
+│       ├── FaceRecognitionService.php  # Layanan jembatan HTTP ke Python Flask FR Service
 │       ├── LaporanFilterService.php    # Layanan filter & query generator laporan
 │       └── WhatsAppService.php         # Integrasi API WA, health, send & format templates
 │
 ├── database/
-│   ├── migrations/                     # Migrasi tabel (Siswa, Pelanggaran, Logs, Settings)
+│   ├── migrations/                     # Migrasi tabel (termasuk setting fr_lbph_base_url)
 │   └── seeders/                        # Seeders data awal (Settings, Users, Dummy Siswa)
 │
 ├── resources/
@@ -227,6 +237,10 @@ pelanggaran-siswa/
 │       ├── auth/
 │       │   └── login.blade.php         # Desain modern login panel
 │       │
+│       ├── guru/
+│       │   └── attendance/
+│       │       └── index.blade.php     # UI pemindaian webcam & catat pelanggaran instan (multi-frame voting)
+│       │
 │       ├── layouts/
 │       │   ├── app.blade.php           # Template dasar admin panel
 │       │   ├── auth.blade.php          # Template dasar login page
@@ -237,7 +251,21 @@ pelanggaran-siswa/
 │               └── show.blade.php      # Landing page laporan privat orang tua
 │
 └── routes/
-    └── web.php                         # Seluruh definisi route aplikasi
+    └── web.php                         # Seluruh definisi route aplikasi (termasuk route FR)
+    
+---
+
+## Microservice Face Recognition (Python - Folder FR_LPBH)
+Layanan Python Flask independen terpisah untuk memproses pengenalan wajah:
+```text
+FR_LPBH/
+├── app.py                      # Flask Server (Endpoints: /health, /recognize, /train)
+├── requirements.txt            # Dependensi (Flask, OpenCV-contrib, numpy)
+├── run.bat                     # Menjalankan server Flask dengan double-click
+├── train.bat                   # Menjalankan HTTP POST /train via Curl
+├── README.md                   # Panduan setup & API documentation
+├── dataset/                    # Dataset gambar wajah dikelompokkan per ID siswa
+└── trained_model/              # Menyimpan trained_model.xml hasil pelatihan
 ```
 
 ---
@@ -257,3 +285,20 @@ pelanggaran-siswa/
 2. AJAX memicu POST request ke `/admin/siswa/{id}/kirim-laporan`.
 3. Service memproses pesan dengan template default / kustom, menyisipkan link `/laporan-siswa/{token}`.
 4. WhatsApp terkirim ke orang tua, log tersimpan di database, dan popup respons sukses/gagal langsung muncul di layar admin.
+
+### C. Alur Pemindaian Wajah & Pencatatan Pelanggaran Otomatis (Face Recognition)
+1. Guru/User masuk ke halaman Kamera Pelanggaran (`/guru/attendance`, route `guru.attendance`).
+2. Webcam diaktifkan, mengambil tangkapan frame canvas (base64) secara berkala (setiap 1.5 detik).
+3. Frame dikirim via POST request ke `/guru/face-recognition/scan` (route `guru.face-recognition.scan`).
+4. `FaceRecognitionController::scan` memanggil `FaceRecognitionService::scanFace()`, yang meneruskan data frame ke microservice Python Flask LBPH di endpoint `/recognize` (base URL dari `app_settings.fr_lbph_base_url`, default `http://127.0.0.1:5000`).
+5. Microservice pipeline v2 mendeteksi wajah (Haar di raw grayscale), crop ROI, terapkan CLAHE pada ROI, resize ke 200x200, lalu menjalankan **multi-scale predict** (LBPH) menggunakan model `trained_model/trained_model.xml`.
+6. Response contract v2 dikembalikan ke Laravel — field `top_match.{student_id, distance, match_strength}`, `candidates` (top 3), dan `match_level` (`strict`/`loose`/`no_match`). Field `confidence` lama sudah dihapus.
+7. Service Laravel menormalisasi `top_match.*` ke top-level fields lalu meneruskan ke controller. Controller lookup `Siswa` by ID; jika ketemu, data siswa + badge poin dikembalikan ke browser.
+8. Browser menghentikan loop scan sementara, memuat data siswa secara otomatis, dan membuka formulir pengisian pelanggaran.
+9. Frontend menerapkan **multi-frame voting**: kumpulkan 5 hasil scan, lock hanya jika `student_id` yang paling sering muncul memiliki `count >= 3` AND `avgDistance < 60.0` (lihat `FRAME_BUFFER_SIZE`, `VOTE_MIN_WIN`, `STRICT_DISTANCE` di view `guru/attendance/index.blade.php`).
+10. Guru mengisi jenis pelanggaran, catatan, bukti foto, lalu mengklik tombol **Simpan Pelanggaran**.
+11. Request diposting ke `/guru/pelanggaran-siswa/store-from-face`, data disimpan di tabel `pelanggaran_siswa`, dan notifikasi dikirim otomatis ke WhatsApp orang tua siswa bersangkutan.
+12. Setelah tersimpan, antarmuka direset dan scanner aktif kembali memindai wajah siswa berikutnya.
+
+Lihat [docs/face-recognition-pipeline.md](docs/face-recognition-pipeline.md) untuk dokumentasi lengkap pipeline v2 (response contract, threshold, setup, test, troubleshooting).
+
