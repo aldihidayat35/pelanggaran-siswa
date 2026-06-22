@@ -8,6 +8,13 @@ use Illuminate\Support\Facades\Log;
 class FaceRecognitionService
 {
     /**
+     * Versi pipeline FR (v1 / v2) yang dilaporkan oleh Python /health.
+     * Null jika service belum pernah dicek atau sedang down.
+     * Untuk monitoring & backward-compat detection.
+     */
+    private ?string $pipelineVersion = null;
+
+    /**
      * Send base64 image frame to FR service and get predicted student ID.
      *
      * Response shape (Python service baru, kontrak v2):
@@ -27,6 +34,10 @@ class FaceRecognitionService
     public function scanFace(string $base64Image): array
     {
         $baseUrl = AppSetting::getValue('fr_lbph_base_url', 'http://127.0.0.1:5000');
+
+        // Refresh pipeline_version sebelum recognize — ringan, untuk monitoring.
+        $this->fetchPipelineVersion();
+
         $endpoint = rtrim($baseUrl, '/') . '/recognize';
 
         $payload = [
@@ -87,5 +98,53 @@ class FaceRecognitionService
         }
 
         return $result;
+    }
+
+    /**
+     * Ambil pipeline_version dari endpoint /health Python.
+     * Simpan di property $pipelineVersion dan return nilainya.
+     * Return null jika service down / response tidak valid — TIDAK throw.
+     */
+    public function fetchPipelineVersion(): ?string
+    {
+        try {
+            $baseUrl = AppSetting::getValue('fr_lbph_base_url', 'http://127.0.0.1:5000');
+            $url = rtrim($baseUrl, '/') . '/health';
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 3,
+                CURLOPT_CONNECTTIMEOUT => 2,
+            ]);
+
+            $body = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($code !== 200 || empty($body)) {
+                return null;
+            }
+
+            $data = json_decode($body, true);
+            if (!is_array($data)) {
+                return null;
+            }
+
+            $this->pipelineVersion = $data['pipeline_version'] ?? null;
+            return $this->pipelineVersion;
+        } catch (\Throwable $e) {
+            // Service mungkin tidak hidup — return null, jangan throw
+            return null;
+        }
+    }
+
+    /**
+     * Return versi pipeline yang terakhir di-fetch.
+     * Null jika fetchPipelineVersion() belum pernah dipanggil atau service down.
+     */
+    public function getPipelineVersion(): ?string
+    {
+        return $this->pipelineVersion;
     }
 }
