@@ -516,7 +516,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // Scan endpoint mengembalikan { matched, siswa: {id, nama, ...} } saat match.
             // top_match adalah signature baru dari Python service, siswa adalah data lengkap.
             const studentId = (res.top_match && res.top_match.student_id) ?? res.student_id ?? null;
-            const distance = (res.top_match && res.top_match.confidence) ?? res.confidence ?? 999;
+            // Kontrak Python v2: field 'confidence' sudah tidak ada. Pakai distance
+            // (top-level hasil normalisasi Service, atau fallback ke top_match.distance).
+            const distance = res.distance ?? (res.top_match && res.top_match.distance) ?? 999;
+            const matchStrength = res.match_strength ?? (res.top_match && res.top_match.match_strength) ?? 0;
             const siswa = res.siswa ?? null;
 
             if (studentId == null) {
