@@ -74,6 +74,10 @@ class Siswa extends Model
 
     public function getTotalPoinAttribute(): int
     {
+        if (array_key_exists('total_poin', $this->attributes)) {
+            return (int) ($this->attributes['total_poin'] ?? 0);
+        }
+
         if (array_key_exists('pelanggaran_siswa_sum_poin', $this->attributes)) {
             return (int) ($this->attributes['pelanggaran_siswa_sum_poin'] ?? 0);
         }
