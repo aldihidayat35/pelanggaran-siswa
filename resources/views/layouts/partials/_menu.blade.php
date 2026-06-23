@@ -132,6 +132,15 @@
                 </div>
             </div>
         </div>
+        <!--begin::Menu item - Kamera Pelanggaran-->
+        <div class="menu-item">
+            <a class="menu-link {{ request()->routeIs('guru.attendance') ? 'active' : '' }}" href="{{ route('guru.attendance') }}">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-camera fs-2"><span class="path1"></span><span class="path2"></span></i>
+                </span>
+                <span class="menu-title">Kamera Pelanggaran</span>
+            </a>
+        </div>
         <!--end::Menu item-->
 
         <!--begin::Menu item - Riwayat Pelanggaran-->

@@ -11,7 +11,12 @@ class LoginController extends Controller
     public function showLoginForm()
     {
         if (Auth::check()) {
-            return redirect()->route('admin.dashboard');
+            $user = Auth::user();
+            if ($user->role === 'admin') {
+                return redirect()->route('admin.dashboard');
+            } else {
+                return redirect()->route('guru.attendance');
+            }
         }
 
         return view('auth.login');
@@ -36,7 +41,11 @@ class LoginController extends Controller
                 ]);
             }
 
-            return redirect()->intended(route('admin.dashboard'));
+            if ($user->role === 'admin') {
+                return redirect()->intended(route('admin.dashboard'));
+            } else {
+                return redirect()->intended(route('guru.attendance'));
+            }
         }
 
         return back()->withErrors([
