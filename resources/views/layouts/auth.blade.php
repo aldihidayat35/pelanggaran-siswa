@@ -6,6 +6,8 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <meta name="csrf-token" content="{{ csrf_token() }}"/>
+    <meta name="theme-color" content="#0b57d0"/>
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}"/>
     <link rel="shortcut icon" href="{{ app_setting('favicon', 'assets/media/logos/favicon.ico') }}"/>
     
     <!-- Google Fonts -->
@@ -152,6 +154,33 @@
             font-size: 1.2rem;
             pointer-events: none;
         }
+        @media (max-width: 767.98px) {
+            body.auth-custom-bg {
+                padding: 0;
+                align-items: stretch;
+                background-position: center top;
+            }
+            .login-card {
+                min-height: 100vh;
+                border-radius: 0;
+                border: 0;
+                box-shadow: none;
+            }
+            .right-panel {
+                padding: 2rem 1.25rem !important;
+                align-items: flex-start !important;
+                padding-top: 4rem !important;
+            }
+            .form-input-wrapper input {
+                min-height: 48px;
+                font-size: 16px;
+            }
+            .position-absolute.bottom-0 {
+                position: fixed !important;
+                font-size: 11px !important;
+                padding-bottom: 0.75rem !important;
+            }
+        }
     </style>
 </head>
 <body id="kt_body" class="auth-custom-bg">
@@ -253,5 +282,6 @@
 
     <script src="assets/plugins/global/plugins.bundle.js"></script>
     <script src="assets/js/scripts.bundle.js"></script>
+    <script src="{{ asset('assets/js/custom/pwa-install.js') }}"></script>
 </body>
 </html>

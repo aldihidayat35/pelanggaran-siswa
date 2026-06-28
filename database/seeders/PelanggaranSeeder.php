@@ -82,7 +82,10 @@ class PelanggaranSeeder extends Seeder
             unset($data['kategori']);
             $data['kategori_id'] = $kategori->id;
 
-            Pelanggaran::create($data);
+            Pelanggaran::updateOrCreate(
+                ['kode_pelanggaran' => $data['kode_pelanggaran']],
+                $data
+            );
         }
     }
 }

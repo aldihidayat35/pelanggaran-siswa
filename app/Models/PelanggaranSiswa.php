@@ -26,6 +26,7 @@ class PelanggaranSiswa extends Model
         'catatan',
         'bukti',
         'dicatat_oleh',
+        'dicatat_oleh_user_id',
         'status_penanganan',
     ];
 
@@ -42,6 +43,11 @@ class PelanggaranSiswa extends Model
     public function pelanggaran(): BelongsTo
     {
         return $this->belongsTo(Pelanggaran::class);
+    }
+
+    public function dicatatOlehUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'dicatat_oleh_user_id');
     }
 
     public function getStatusBadgeAttribute(): string

@@ -36,6 +36,7 @@
                 <select id="role-filter" class="form-select form-select-solid w-150px ms-3">
                     <option value="">Semua Role</option>
                     <option value="admin">Admin</option>
+                    <option value="guru">Guru</option>
                     <option value="user">User</option>
                 </select>
                 <select id="status-filter" class="form-select form-select-solid w-150px ms-3">

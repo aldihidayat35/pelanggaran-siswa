@@ -117,7 +117,7 @@
                                     <span class="text-muted fw-semibold d-block fs-7">{{ $user->email }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge badge-light-{{ $user->role === 'admin' ? 'danger' : 'primary' }} fs-7 fw-semibold">{{ ucfirst($user->role) }}</span>
+                                    <span class="badge badge-light-{{ $user->role === 'admin' ? 'danger' : ($user->role === 'guru' ? 'success' : 'primary') }} fs-7 fw-semibold">{{ ucfirst($user->role) }}</span>
                                 </td>
                                 <td>
                                     <span class="badge badge-light-{{ $user->is_active ? 'success' : 'secondary' }} fs-7 fw-semibold">{{ $user->is_active ? 'Aktif' : 'Nonaktif' }}</span>

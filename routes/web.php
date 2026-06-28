@@ -58,6 +58,9 @@ Route::middleware(['auth', 'admin'])->prefix('pelanggaran-siswa')->name('pelangg
     // Siswa
     Route::resource('siswa', SiswaController::class);
     Route::post('/siswa/{siswa}/kirim-laporan', [SiswaController::class, 'kirimLaporan'])->name('siswa.kirim-laporan');
+    Route::get('/siswa/{siswa}/face-registration', [SiswaController::class, 'faceRegistration'])->name('siswa.face-registration');
+    Route::post('/siswa/{siswa}/face-registration/capture', [SiswaController::class, 'captureFace'])->name('siswa.face-registration.capture');
+    Route::post('/face-recognition/train', [SiswaController::class, 'trainFaceRecognition'])->name('face-recognition.train');
 
     // Kategori Pelanggaran
     Route::resource('kategori', KategoriPelanggaranController::class)->except(['show']);
@@ -85,5 +88,4 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/guru/face-recognition/scan', [\App\Http\Controllers\Guru\FaceRecognitionController::class, 'scan'])->name('guru.face-recognition.scan');
     Route::post('/guru/pelanggaran-siswa/store-from-face', [\App\Http\Controllers\Guru\FaceRecognitionController::class, 'storeFromFace'])->name('guru.pelanggaran-siswa.store-from-face');
 });
-
 

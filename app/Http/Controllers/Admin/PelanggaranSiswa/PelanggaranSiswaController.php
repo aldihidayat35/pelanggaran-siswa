@@ -41,6 +41,10 @@ class PelanggaranSiswaController extends Controller
                 });
             }
 
+            if (auth()->user()->role === 'guru') {
+                $query->where('dicatat_oleh_user_id', auth()->id());
+            }
+
             $filteredRecords = $query->count();
 
             // Handle ordering
@@ -165,6 +169,7 @@ class PelanggaranSiswaController extends Controller
         $pelanggaran = Pelanggaran::findOrFail($validated['pelanggaran_id']);
         $validated['poin'] = $pelanggaran->poin;
         $validated['dicatat_oleh'] = Auth::check() ? Auth::user()->name : 'Admin';
+        $validated['dicatat_oleh_user_id'] = Auth::id();
 
         if ($request->hasFile('bukti')) {
             $validated['bukti'] = $request->file('bukti')->store('bukti', 'public');

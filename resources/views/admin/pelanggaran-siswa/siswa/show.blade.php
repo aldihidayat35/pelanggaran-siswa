@@ -47,6 +47,9 @@
                     <span class="card-label fw-bold fs-3 mb-1">Biodata Siswa</span>
                 </h3>
                 <div class="card-toolbar">
+                    <a href="{{ route('pelanggaran-siswa.siswa.face-registration', $siswa) }}" class="btn btn-sm btn-light-success me-2">
+                        <i class="ki-duotone ki-scan-barcode fs-3"></i> Daftar Wajah
+                    </a>
                     <a href="{{ route('pelanggaran-siswa.siswa.edit', $siswa) }}" class="btn btn-sm btn-light-primary">
                         <i class="ki-duotone ki-pencil fs-3"></i> Edit
                     </a>

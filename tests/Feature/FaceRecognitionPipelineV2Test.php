@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\AppSetting;
 use App\Services\FaceRecognitionService;
 use Mockery;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Tests\TestCase;
 
 /**
@@ -40,6 +42,8 @@ use Tests\TestCase;
  *     - Handling error (HTTP 500, JSON invalid, not recognized)
  *     - Field 'confidence' TIDAK ada di response
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class FaceRecognitionPipelineV2Test extends TestCase
 {
     private const FAKE_PORT = 5099;
@@ -75,9 +79,73 @@ class FaceRecognitionPipelineV2Test extends TestCase
         $routerSource = <<<'PHP'
 <?php
 $payload = json_decode(file_get_contents('php://input'), true) ?: [];
-$mode = $payload['_fake_response'] ?? 'recognized';
+$decodedImagePayload = [];
+if (!empty($payload['image'])) {
+    $decodedImagePayload = json_decode(base64_decode($payload['image']), true) ?: [];
+}
+$mode = $decodedImagePayload['_fake_response'] ?? $payload['_fake_response'] ?? 'recognized';
+$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 
 header('Content-Type: application/json');
+
+if ($path === '/enroll') {
+    if ($mode === 'enroll_error') {
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Wajah tidak terdeteksi.',
+        ]);
+        return;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'student_id' => 100,
+        'filename' => 'capture_test.jpg',
+        'image_count' => 8,
+        'face_size' => [200, 200],
+        'message' => 'Foto wajah berhasil disimpan ke dataset.',
+    ]);
+    return;
+}
+
+if ($path === '/dataset/100') {
+    echo json_encode([
+        'success' => true,
+        'student_id' => 100,
+        'image_count' => 8,
+        'dataset_dir' => 'dataset/100',
+        'registered' => true,
+        'message' => 'Dataset wajah siswa ditemukan.',
+    ]);
+    return;
+}
+
+if ($path === '/train') {
+    echo json_encode([
+        'success' => true,
+        'message' => 'Model berhasil dilatih.',
+        'stats' => [
+            'total_images_processed' => 8,
+            'total_faces_extracted' => 16,
+            'total_faces_skipped' => 0,
+            'after_augmentation' => 16,
+            'unique_students' => 1,
+            'per_student_counts' => ['100' => 16],
+        ],
+    ]);
+    return;
+}
+
+if ($path === '/health') {
+    echo json_encode([
+        'status' => 'active',
+        'pipeline_version' => '2.0',
+        'model_loaded' => true,
+        'students_count' => 1,
+    ]);
+    return;
+}
 
 if ($mode === 'not_recognized') {
     echo json_encode([
@@ -87,6 +155,24 @@ if ($mode === 'not_recognized') {
         'candidates' => [],
         'match_level' => 'strict',
         'message' => 'No face recognized',
+    ]);
+    return;
+}
+
+if ($mode === 'quality_reject') {
+    echo json_encode([
+        'success' => true,
+        'recognized' => false,
+        'top_match' => null,
+        'candidates' => [],
+        'match_level' => 'quality_reject',
+        'face_detected' => true,
+        'quality_score' => 0.31,
+        'brightness' => 28.5,
+        'blur_score' => 12.7,
+        'face_box' => ['x' => 10, 'y' => 20, 'width' => 90, 'height' => 90],
+        'reject_reasons' => ['Cahaya terlalu gelap.', 'Gambar wajah terlalu blur.'],
+        'message' => 'Kualitas scan kurang baik.',
     ]);
     return;
 }
@@ -233,8 +319,74 @@ PHP;
         $routerSource = <<<PHP
 <?php
 header('Content-Type: application/json');
+\$path = parse_url(\$_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+\$payload = json_decode(file_get_contents('php://input'), true) ?: [];
+\$decodedImagePayload = [];
+if (!empty(\$payload['image'])) {
+    \$decodedImagePayload = json_decode(base64_decode(\$payload['image']), true) ?: [];
+}
+\$mode = \$decodedImagePayload['_fake_response'] ?? '$mode';
 
-if ('$mode' === 'not_recognized') {
+if (\$path === '/enroll') {
+    if (\$mode === 'enroll_error') {
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Wajah tidak terdeteksi.',
+        ]);
+        return;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'student_id' => 100,
+        'filename' => 'capture_test.jpg',
+        'image_count' => 8,
+        'face_size' => [200, 200],
+        'message' => 'Foto wajah berhasil disimpan ke dataset.',
+    ]);
+    return;
+}
+
+if (\$path === '/dataset/100') {
+    echo json_encode([
+        'success' => true,
+        'student_id' => 100,
+        'image_count' => 8,
+        'dataset_dir' => 'dataset/100',
+        'registered' => true,
+        'message' => 'Dataset wajah siswa ditemukan.',
+    ]);
+    return;
+}
+
+if (\$path === '/train') {
+    echo json_encode([
+        'success' => true,
+        'message' => 'Model berhasil dilatih.',
+        'stats' => [
+            'total_images_processed' => 8,
+            'total_faces_extracted' => 16,
+            'total_faces_skipped' => 0,
+            'after_augmentation' => 16,
+            'unique_students' => 1,
+            'per_student_counts' => ['100' => 16],
+        ],
+    ]);
+    return;
+}
+
+if (\$path === '/health') {
+    echo json_encode([
+        'status' => 'active',
+        'pipeline_version' => '2.0',
+        'model_loaded' => true,
+        'students_count' => 1,
+    ]);
+    return;
+}
+
+if (\$mode === 'not_recognized') {
     echo json_encode([
         'success' => true,
         'recognized' => false,
@@ -246,13 +398,31 @@ if ('$mode' === 'not_recognized') {
     return;
 }
 
-if ('$mode' === 'error_500') {
+if (\$mode === 'quality_reject') {
+    echo json_encode([
+        'success' => true,
+        'recognized' => false,
+        'top_match' => null,
+        'candidates' => [],
+        'match_level' => 'quality_reject',
+        'face_detected' => true,
+        'quality_score' => 0.31,
+        'brightness' => 28.5,
+        'blur_score' => 12.7,
+        'face_box' => ['x' => 10, 'y' => 20, 'width' => 90, 'height' => 90],
+        'reject_reasons' => ['Cahaya terlalu gelap.', 'Gambar wajah terlalu blur.'],
+        'message' => 'Kualitas scan kurang baik.',
+    ]);
+    return;
+}
+
+if (\$mode === 'error_500') {
     http_response_code(500);
     echo json_encode(['error' => 'internal error']);
     return;
 }
 
-if ('$mode' === 'invalid_json') {
+if (\$mode === 'invalid_json') {
     echo 'this is not json';
     return;
 }
@@ -283,7 +453,7 @@ PHP;
     {
         $this->setFakeMode($mode);
         $service = app(FaceRecognitionService::class);
-        return $service->scanFace('fake-image-base64');
+        return $service->scanFace($this->buildPayload($mode));
     }
 
     public function test_face_recognition_response_uses_v2_contract(): void
@@ -347,6 +517,20 @@ PHP;
         $this->assertNull($result['match_strength'] ?? null);
     }
 
+    public function test_face_recognition_passes_quality_reject_metadata(): void
+    {
+        $result = $this->scanWithFake('quality_reject');
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse($result['recognized']);
+        $this->assertSame('quality_reject', $result['match_level']);
+        $this->assertTrue($result['face_detected']);
+        $this->assertSame(0.31, $result['quality_score']);
+        $this->assertSame(28.5, $result['brightness']);
+        $this->assertSame(12.7, $result['blur_score']);
+        $this->assertSame(['Cahaya terlalu gelap.', 'Gambar wajah terlalu blur.'], $result['reject_reasons']);
+    }
+
     public function test_face_recognition_handles_http_500(): void
     {
         $result = $this->scanWithFake('error_500');
@@ -363,5 +547,51 @@ PHP;
         $this->assertFalse($result['success']);
         $this->assertFalse($result['recognized']);
         $this->assertStringContainsString('Format respons', $result['message']);
+    }
+
+    public function test_face_registration_can_enroll_face(): void
+    {
+        $this->setFakeMode('recognized');
+
+        $result = app(FaceRecognitionService::class)->enrollFace(100, $this->buildPayload('recognized'));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(100, $result['student_id']);
+        $this->assertSame(8, $result['image_count']);
+        $this->assertSame('capture_test.jpg', $result['filename']);
+    }
+
+    public function test_face_registration_returns_dataset_status(): void
+    {
+        $this->setFakeMode('recognized');
+
+        $result = app(FaceRecognitionService::class)->getStudentDatasetStatus(100);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($result['registered']);
+        $this->assertSame(8, $result['image_count']);
+    }
+
+    public function test_face_registration_can_train_model(): void
+    {
+        $this->setFakeMode('recognized');
+
+        $result = app(FaceRecognitionService::class)->trainModel();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(16, $result['stats']['after_augmentation']);
+        $this->assertSame(1, $result['stats']['unique_students']);
+    }
+
+    public function test_face_registration_handles_enroll_error(): void
+    {
+        $this->setFakeMode('enroll_error');
+
+        $result = app(FaceRecognitionService::class)->enrollFace(100, $this->buildPayload('enroll_error'));
+
+        $this->assertFalse($result['success']);
+        $this->assertFalse($result['recognized']);
+        $this->assertSame(422, $result['http_code']);
+        $this->assertStringContainsString('Wajah tidak terdeteksi', $result['message']);
     }
 }

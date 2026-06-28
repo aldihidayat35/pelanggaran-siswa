@@ -21,7 +21,7 @@ class FaceRecognitionController extends Controller
     private function authorizeRole()
     {
         $user = auth()->user();
-        if (!$user || !in_array($user->role, ['admin', 'guru', 'user'])) {
+        if (!$user || !in_array($user->role, ['admin', 'guru'])) {
             abort(403, 'Anda tidak memiliki akses ke halaman ini.');
         }
     }
@@ -39,8 +39,15 @@ class FaceRecognitionController extends Controller
         // Ambil versi pipeline FR (v1/v2) dari /health untuk ditampilkan di view.
         // Null jika service belum pernah dicek atau sedang down — UI harus handle null.
         $pipelineVersion = $frService->fetchPipelineVersion();
+        $riwayatGuru = PelanggaranSiswa::with(['siswa', 'pelanggaran.kategori'])
+            ->when(auth()->user()->role === 'guru', function ($query) {
+                $query->where('dicatat_oleh_user_id', auth()->id());
+            })
+            ->latest('created_at')
+            ->limit(10)
+            ->get();
 
-        return view('guru.attendance.index', compact('pelanggaranList', 'pipelineVersion'));
+        return view('guru.attendance.index', compact('pelanggaranList', 'pipelineVersion', 'riwayatGuru'));
     }
 
     /**
@@ -84,6 +91,18 @@ class FaceRecognitionController extends Controller
                 'recognized' => true,
                 'matched' => true,
                 'message' => 'Siswa berhasil dikenali.',
+                'top_match' => $res['top_match'] ?? null,
+                'candidates' => $res['candidates'] ?? [],
+                'distance' => $res['distance'] ?? ($res['top_match']['distance'] ?? null),
+                'match_strength' => $res['match_strength'] ?? ($res['top_match']['match_strength'] ?? null),
+                'match_level' => $res['match_level'] ?? null,
+                'candidate_margin' => $res['candidate_margin'] ?? null,
+                'face_detected' => $res['face_detected'] ?? null,
+                'quality_score' => $res['quality_score'] ?? null,
+                'brightness' => $res['brightness'] ?? null,
+                'blur_score' => $res['blur_score'] ?? null,
+                'face_box' => $res['face_box'] ?? null,
+                'reject_reasons' => $res['reject_reasons'] ?? [],
                 'siswa' => [
                     'id' => $siswa->id,
                     'nis' => $siswa->nis,
@@ -143,6 +162,7 @@ class FaceRecognitionController extends Controller
             'status_penanganan' => 'Belum Diproses', // Default penanganan
             'poin' => $pelanggaran->poin,
             'dicatat_oleh' => Auth::check() ? Auth::user()->name : 'Guru',
+            'dicatat_oleh_user_id' => Auth::id(),
         ];
 
         if ($request->hasFile('bukti')) {

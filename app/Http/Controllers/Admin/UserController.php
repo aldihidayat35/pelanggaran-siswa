@@ -90,7 +90,7 @@ class UserController extends Controller
                                 <span class="text-muted fs-7">' . e($user->email) . '</span>
                             </div>
                         </div>',
-                    'role' => '<span class="badge badge-light-' . ($user->role === 'admin' ? 'danger' : 'primary') . '">' . ucfirst($user->role) . '</span>',
+                    'role' => '<span class="badge badge-light-' . ($user->role === 'admin' ? 'danger' : ($user->role === 'guru' ? 'success' : 'primary')) . '">' . ucfirst($user->role) . '</span>',
                     'status' => '<span class="badge badge-light-' . ($user->is_active ? 'success' : 'secondary') . '">' . ($user->is_active ? 'Aktif' : 'Nonaktif') . '</span>',
                     'created_at' => $user->created_at->format('d M Y'),
                     'action' => '
@@ -129,9 +129,12 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'nip' => ['nullable', 'string', 'max:50'],
             'password' => ['required', 'confirmed', Password::min(8)],
-            'role' => ['required', Rule::in(['admin', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'guru', 'user'])],
             'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'no_hp' => ['nullable', 'string', 'max:20'],
+            'jabatan' => ['nullable', 'string', 'max:100'],
             'is_active' => ['boolean'],
         ]);
 
@@ -157,9 +160,12 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'nip' => ['nullable', 'string', 'max:50'],
             'password' => ['nullable', 'confirmed', Password::min(8)],
-            'role' => ['required', Rule::in(['admin', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'guru', 'user'])],
             'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'no_hp' => ['nullable', 'string', 'max:20'],
+            'jabatan' => ['nullable', 'string', 'max:100'],
             'is_active' => ['boolean'],
         ]);
 

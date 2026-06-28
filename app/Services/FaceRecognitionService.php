@@ -7,55 +7,29 @@ use Illuminate\Support\Facades\Log;
 
 class FaceRecognitionService
 {
-    /**
-     * Versi pipeline FR (v1 / v2) yang dilaporkan oleh Python /health.
-     * Null jika service belum pernah dicek atau sedang down.
-     * Untuk monitoring & backward-compat detection.
-     */
     private ?string $pipelineVersion = null;
 
-    /**
-     * Send base64 image frame to FR service and get predicted student ID.
-     *
-     * Response shape (Python service baru, kontrak v2):
-     *   {
-     *     success: bool,
-     *     recognized: bool,
-     *     match_level: "strict"|"loose"|null,
-     *     top_match: { student_id, distance, match_strength },
-     *     candidates: [{ student_id, distance, match_strength }],
-     *     message: string
-     *   }
-     *
-     * Service ini menormalisasi ke top-level student_id, distance & match_strength
-     * agar controller (FaceRecognitionController::scan) yang baca $res['student_id']
-     * tetap kompatibel.
-     */
-    public function scanFace(string $base64Image): array
+    private function baseUrl(): string
     {
-        $baseUrl = AppSetting::getValue('fr_lbph_base_url', 'http://127.0.0.1:5000');
+        return rtrim(AppSetting::getValue('fr_lbph_base_url', 'http://127.0.0.1:5000'), '/');
+    }
 
-        // Refresh pipeline_version sebelum recognize — ringan, untuk monitoring.
-        $this->fetchPipelineVersion();
-
-        $endpoint = rtrim($baseUrl, '/') . '/recognize';
-
-        $payload = [
-            'image' => $base64Image,
-        ];
+    private function request(string $method, string $path, ?array $payload = null, int $timeout = 25): array
+    {
+        $endpoint = $this->baseUrl() . '/' . ltrim($path, '/');
 
         $ch = curl_init($endpoint);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-        // Frontend kirim 5 frame (multi-frame voting) dalam ~7.5 detik.
-        // Timeout dinaikkan agar request terjadwal tidak timeout di tengah proses.
-        // CONNECTTIMEOUT 5s agar fast-fail kalau service mati.
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+
+        if (strtoupper($method) === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload ?? []));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+            ]);
+        }
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -63,7 +37,7 @@ class FaceRecognitionService
         curl_close($ch);
 
         if ($error) {
-            Log::error("Face Recognition Service connection failed: " . $error);
+            Log::error('Face Recognition Service connection failed: ' . $error);
             return [
                 'success' => false,
                 'recognized' => false,
@@ -71,17 +45,9 @@ class FaceRecognitionService
             ];
         }
 
-        if ($httpCode !== 200) {
-            Log::error("Face Recognition Service returned HTTP status " . $httpCode . ": " . $response);
-            return [
-                'success' => false,
-                'recognized' => false,
-                'message' => 'Service face recognition mengembalikan respon error (' . $httpCode . ').',
-            ];
-        }
-
-        $result = json_decode($response, true);
-        if (!$result || !isset($result['success'])) {
+        $result = json_decode((string) $response, true);
+        if (!is_array($result)) {
+            Log::error('Face Recognition Service returned invalid JSON: ' . $response);
             return [
                 'success' => false,
                 'recognized' => false,
@@ -89,8 +55,29 @@ class FaceRecognitionService
             ];
         }
 
-        // Normalisasi: Python service mengirim top_match.{student_id, distance, match_strength}.
-        // Controller Laravel baca $res['student_id']. Map agar tetap kompatibel.
+        if ($httpCode < 200 || $httpCode >= 300) {
+            Log::error('Face Recognition Service returned HTTP status ' . $httpCode . ': ' . $response);
+            $result['success'] = false;
+            $result['recognized'] = false;
+            $result['message'] = $result['message'] ?? 'Service face recognition mengembalikan respon error (' . $httpCode . ').';
+            $result['http_code'] = $httpCode;
+            return $result;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Send a base64 image frame to the FR service and normalize the v2 response.
+     */
+    public function scanFace(string $base64Image): array
+    {
+        $this->fetchPipelineVersion();
+
+        $result = $this->request('POST', '/recognize', [
+            'image' => $base64Image,
+        ], 25);
+
         if (isset($result['top_match']) && is_array($result['top_match'])) {
             $result['student_id'] = $result['top_match']['student_id'] ?? null;
             $result['distance'] = $result['top_match']['distance'] ?? null;
@@ -100,49 +87,40 @@ class FaceRecognitionService
         return $result;
     }
 
-    /**
-     * Ambil pipeline_version dari endpoint /health Python.
-     * Simpan di property $pipelineVersion dan return nilainya.
-     * Return null jika service down / response tidak valid — TIDAK throw.
-     */
+    public function enrollFace(int $studentId, string $base64Image): array
+    {
+        return $this->request('POST', '/enroll', [
+            'student_id' => $studentId,
+            'image' => $base64Image,
+        ], 25);
+    }
+
+    public function getStudentDatasetStatus(int $studentId): array
+    {
+        return $this->request('GET', '/dataset/' . $studentId, null, 10);
+    }
+
+    public function trainModel(): array
+    {
+        return $this->request('POST', '/train', [], 120);
+    }
+
+    public function health(): array
+    {
+        return $this->request('GET', '/health', null, 10);
+    }
+
     public function fetchPipelineVersion(): ?string
     {
         try {
-            $baseUrl = AppSetting::getValue('fr_lbph_base_url', 'http://127.0.0.1:5000');
-            $url = rtrim($baseUrl, '/') . '/health';
-
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 3,
-                CURLOPT_CONNECTTIMEOUT => 2,
-            ]);
-
-            $body = curl_exec($ch);
-            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($code !== 200 || empty($body)) {
-                return null;
-            }
-
-            $data = json_decode($body, true);
-            if (!is_array($data)) {
-                return null;
-            }
-
+            $data = $this->health();
             $this->pipelineVersion = $data['pipeline_version'] ?? null;
             return $this->pipelineVersion;
         } catch (\Throwable $e) {
-            // Service mungkin tidak hidup — return null, jangan throw
             return null;
         }
     }
 
-    /**
-     * Return versi pipeline yang terakhir di-fetch.
-     * Null jika fetchPipelineVersion() belum pernah dipanggil atau service down.
-     */
     public function getPipelineVersion(): ?string
     {
         return $this->pipelineVersion;

@@ -90,7 +90,9 @@ class SiswaSeeder extends Seeder
             $kelas = $kelasOptions[$i % count($kelasOptions)];
             $jurusan = $jurusanOptions[$i % count($jurusanOptions)];
 
-            Siswa::create([
+            Siswa::updateOrCreate([
+                'nis' => (string) ($baseNis + $i),
+            ], [
                 'nis'             => (string) ($baseNis + $i),
                 'nisn'            => (string) ($baseNisn + $i),
                 'nama'            => $item['nama'],

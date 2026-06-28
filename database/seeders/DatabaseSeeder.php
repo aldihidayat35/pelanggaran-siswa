@@ -38,6 +38,8 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        $this->call(GuruUserSeeder::class);
+
         // Seed app settings
         $this->call(AppSettingSeeder::class);
 

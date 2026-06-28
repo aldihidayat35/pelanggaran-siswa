@@ -7,48 +7,52 @@
     <div class="menu menu-column menu-title-gray-800 menu-state-title-primary menu-state-icon-primary menu-state-bullet-primary menu-arrow-gray-500"
         id="#kt_aside_menu" data-kt-menu="true">
 
-        <!--begin::Menu item - Dashboard-->
-        <div class="menu-item">
-            <a class="menu-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">
-                <span class="menu-icon">
-                    <i class="ki-duotone ki-element-11 fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
-                </span>
-                <span class="menu-title">Dashboard</span>
-            </a>
-        </div>
-        <!--end::Menu item-->
+        @php($isAdmin = auth()->user()?->role === 'admin')
 
-        <div class="menu-item pt-5">
-            <div class="menu-content">
-                <span class="menu-heading fw-bold text-uppercase fs-7">Manajemen</span>
+        @if($isAdmin)
+            <!--begin::Menu item - Dashboard-->
+            <div class="menu-item">
+                <a class="menu-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">
+                    <span class="menu-icon">
+                        <i class="ki-duotone ki-element-11 fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                    </span>
+                    <span class="menu-title">Dashboard</span>
+                </a>
             </div>
-        </div>
+            <!--end::Menu item-->
 
-        <!--begin::Menu item - User Management-->
-        <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('admin.users.*') ? 'here show' : '' }}">
-            <span class="menu-link">
-                <span class="menu-icon">
-                    <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>
-                </span>
-                <span class="menu-title">Manajemen User</span>
-                <span class="menu-arrow"></span>
-            </span>
-            <div class="menu-sub menu-sub-accordion">
-                <div class="menu-item">
-                    <a class="menu-link {{ request()->routeIs('admin.users.index') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
-                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
-                        <span class="menu-title">Daftar User</span>
-                    </a>
-                </div>
-                <div class="menu-item">
-                    <a class="menu-link {{ request()->routeIs('admin.users.create') ? 'active' : '' }}" href="{{ route('admin.users.create') }}">
-                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
-                        <span class="menu-title">Tambah User</span>
-                    </a>
+            <div class="menu-item pt-5">
+                <div class="menu-content">
+                    <span class="menu-heading fw-bold text-uppercase fs-7">Manajemen</span>
                 </div>
             </div>
-        </div>
-        <!--end::Menu item-->
+
+            <!--begin::Menu item - User Management-->
+            <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('admin.users.*') ? 'here show' : '' }}">
+                <span class="menu-link">
+                    <span class="menu-icon">
+                        <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>
+                    </span>
+                    <span class="menu-title">Manajemen User</span>
+                    <span class="menu-arrow"></span>
+                </span>
+                <div class="menu-sub menu-sub-accordion">
+                    <div class="menu-item">
+                        <a class="menu-link {{ request()->routeIs('admin.users.index') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
+                            <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                            <span class="menu-title">Daftar User</span>
+                        </a>
+                    </div>
+                    <div class="menu-item">
+                        <a class="menu-link {{ request()->routeIs('admin.users.create') ? 'active' : '' }}" href="{{ route('admin.users.create') }}">
+                            <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                            <span class="menu-title">Tambah User</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <!--end::Menu item-->
+        @endif
 
         <div class="menu-item pt-5">
             <div class="menu-content">
@@ -56,6 +60,7 @@
             </div>
         </div>
 
+        @if($isAdmin)
         <!--begin::Menu item - Data Siswa-->
         <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('pelanggaran-siswa.siswa.*') ? 'here show' : '' }}">
             <span class="menu-link">
@@ -132,6 +137,7 @@
                 </div>
             </div>
         </div>
+        @endif
         <!--begin::Menu item - Kamera Pelanggaran-->
         <div class="menu-item">
             <a class="menu-link {{ request()->routeIs('guru.attendance') ? 'active' : '' }}" href="{{ route('guru.attendance') }}">
@@ -143,6 +149,7 @@
         </div>
         <!--end::Menu item-->
 
+        @if($isAdmin)
         <!--begin::Menu item - Riwayat Pelanggaran-->
         <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('pelanggaran-siswa.riwayat.*') ? 'here show' : '' }}">
             <span class="menu-link">
@@ -179,7 +186,9 @@
             </a>
         </div>
         <!--end::Menu item-->
+        @endif
 
+        @if($isAdmin)
         <div class="menu-item pt-5">
             <div class="menu-content">
                 <span class="menu-heading fw-bold text-uppercase fs-7">Pengaturan</span>
@@ -196,6 +205,7 @@
             </a>
         </div>
         <!--end::Menu item-->
+        @endif
     </div>
 </div>
 <!--end::Menu-->

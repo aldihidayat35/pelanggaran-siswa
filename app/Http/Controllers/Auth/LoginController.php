@@ -14,9 +14,16 @@ class LoginController extends Controller
             $user = Auth::user();
             if ($user->role === 'admin') {
                 return redirect()->route('admin.dashboard');
-            } else {
+            }
+
+            if ($user->role === 'guru') {
                 return redirect()->route('guru.attendance');
             }
+
+            Auth::logout();
+            return redirect()->route('login')->withErrors([
+                'email' => 'Role akun Anda belum memiliki akses aplikasi.',
+            ]);
         }
 
         return view('auth.login');
@@ -43,9 +50,16 @@ class LoginController extends Controller
 
             if ($user->role === 'admin') {
                 return redirect()->intended(route('admin.dashboard'));
-            } else {
+            }
+
+            if ($user->role === 'guru') {
                 return redirect()->intended(route('guru.attendance'));
             }
+
+            Auth::logout();
+            return back()->withErrors([
+                'email' => 'Role akun Anda belum memiliki akses aplikasi.',
+            ])->onlyInput('email');
         }
 
         return back()->withErrors([

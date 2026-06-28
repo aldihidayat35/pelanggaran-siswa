@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin\PelanggaranSiswa;
 
 use App\Http\Controllers\Controller;
 use App\Models\Siswa;
+use App\Services\FaceRecognitionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SiswaController extends Controller
@@ -60,7 +62,13 @@ class SiswaController extends Controller
             foreach ($siswa as $index => $s) {
                 $showUrl = route('pelanggaran-siswa.siswa.show', $s);
                 $editUrl = route('pelanggaran-siswa.siswa.edit', $s);
+                $faceRegistrationUrl = route('pelanggaran-siswa.siswa.face-registration', $s);
                 $deleteUrl = route('pelanggaran-siswa.siswa.destroy', $s);
+                $publicLaporanMenu = $s->whatsapp_token
+                    ? '<div class="menu-item px-3">
+                                <a href="' . route('pelanggaran-siswa.public-laporan', ['token' => $s->whatsapp_token]) . '" class="menu-link px-3" target="_blank">Riwayat Laporan</a>
+                            </div>'
+                    : '';
                 $csrf = csrf_field();
                 $methodDelete = method_field('DELETE');
                 
@@ -102,14 +110,15 @@ class SiswaController extends Controller
                             <div class="menu-item px-3">
                                 <a href="' . $showUrl . '" class="menu-link px-3">Detail</a>
                             </div>
-                            <div class="menu-item px-3">
-                                <a href="' . route('pelanggaran-siswa.public-laporan', ['token' => $s->whatsapp_token ?? '']) . '" class="menu-link px-3" target="_blank">Riwayat Laporan</a>
-                            </div>
+                            ' . $publicLaporanMenu . '
                             <div class="menu-item px-3">
                                 <a href="#" class="menu-link px-3 btn-kirim-laporan text-primary" data-id="' . $s->id . '" data-nama="' . e($s->nama) . '">Kirim Laporan</a>
                             </div>
                             <div class="menu-item px-3">
                                 <a href="' . $editUrl . '" class="menu-link px-3">Edit</a>
+                            </div>
+                            <div class="menu-item px-3">
+                                <a href="' . $faceRegistrationUrl . '" class="menu-link px-3 text-primary">Daftar Wajah</a>
                             </div>
                             <div class="menu-item px-3">
                                 <form method="POST" action="' . $deleteUrl . '"
@@ -161,6 +170,8 @@ class SiswaController extends Controller
         if ($request->hasFile('foto')) {
             $validated['foto'] = $request->file('foto')->store('siswa', 'public');
         }
+
+        $validated['whatsapp_token'] = Str::random(40);
 
         Siswa::create($validated);
 
@@ -248,5 +259,38 @@ class SiswaController extends Controller
             'success' => $res['success'],
             'message' => $res['success'] ? 'Laporan berhasil dikirim ke WhatsApp orang tua.' : 'Gagal mengirim laporan: ' . $res['message'],
         ]);
+    }
+
+    public function faceRegistration(Siswa $siswa, FaceRecognitionService $frService)
+    {
+        $dataset = $frService->getStudentDatasetStatus($siswa->id);
+        $health = $frService->health();
+
+        return view('admin.pelanggaran-siswa.siswa.face-registration', compact('siswa', 'dataset', 'health'));
+    }
+
+    public function captureFace(Request $request, Siswa $siswa, FaceRecognitionService $frService)
+    {
+        if ($siswa->status !== Siswa::STATUS_AKTIF) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pendaftaran wajah hanya dapat dilakukan untuk siswa aktif.',
+            ], 422);
+        }
+
+        $request->validate([
+            'image' => ['required', 'string'],
+        ]);
+
+        $result = $frService->enrollFace($siswa->id, $request->image);
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
+    }
+
+    public function trainFaceRecognition(FaceRecognitionService $frService)
+    {
+        $result = $frService->trainModel();
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }
 }

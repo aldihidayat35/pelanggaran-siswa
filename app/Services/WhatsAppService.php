@@ -195,6 +195,10 @@ class WhatsAppService
     public function formatMessage(string $template, $siswa, $pelanggaranSiswa = null): string
     {
         $totalPoin = $siswa->total_poin;
+        if (empty($siswa->whatsapp_token)) {
+            $siswa->whatsapp_token = \Illuminate\Support\Str::random(40);
+            $siswa->save();
+        }
         
         $placeholders = [
             '{nama_siswa}' => $siswa->nama,
@@ -204,7 +208,7 @@ class WhatsAppService
             '{poin_pelanggaran}' => $pelanggaranSiswa ? $pelanggaranSiswa->poin : '0',
             '{total_poin}' => $totalPoin,
             '{tanggal_pelanggaran}' => $pelanggaranSiswa && $pelanggaranSiswa->tanggal_pelanggaran ? $pelanggaranSiswa->tanggal_pelanggaran->format('d/m/Y') : now()->format('d/m/Y'),
-            '{link_riwayat_laporan}' => route('pelanggaran-siswa.public-laporan', ['token' => $siswa->whatsapp_token ?? '']),
+            '{link_riwayat_laporan}' => route('pelanggaran-siswa.public-laporan', ['token' => $siswa->whatsapp_token]),
         ];
 
         return strtr($template, $placeholders);

@@ -6,6 +6,8 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <meta name="csrf-token" content="{{ csrf_token() }}"/>
+    <meta name="theme-color" content="#0b57d0"/>
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}"/>
     <link rel="shortcut icon" href="{{ app_setting('favicon', 'assets/media/logos/favicon.ico') }}"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700"/>
     @stack('vendor-css')
@@ -167,6 +169,7 @@
     <script>var hostUrl = "assets/";</script>
     <script src="assets/plugins/global/plugins.bundle.js"></script>
     <script src="assets/js/scripts.bundle.js"></script>
+    <script src="{{ asset('assets/js/custom/pwa-install.js') }}"></script>
     @stack('vendor-js')
     @stack('custom-js')
 </body>

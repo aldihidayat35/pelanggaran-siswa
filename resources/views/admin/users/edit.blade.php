@@ -78,6 +78,17 @@
             </div>
 
             <div class="row mb-6">
+                <label class="col-lg-4 col-form-label fw-semibold fs-6">NIP</label>
+                <div class="col-lg-8">
+                    <input type="text" name="nip" class="form-control form-control-lg form-control-solid @error('nip') is-invalid @enderror"
+                        value="{{ old('nip', $user->nip) }}" placeholder="NIP guru (opsional)"/>
+                    @error('nip')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="row mb-6">
                 <label class="col-lg-4 col-form-label fw-semibold fs-6">Password <span class="text-muted fs-7">(Kosongkan jika tidak ingin mengubah)</span></label>
                 <div class="col-lg-8">
                     <input type="password" name="password" class="form-control form-control-lg form-control-solid @error('password') is-invalid @enderror"
@@ -101,9 +112,32 @@
                 <div class="col-lg-8">
                     <select name="role" class="form-select form-select-solid form-select-lg @error('role') is-invalid @enderror">
                         <option value="user" {{ old('role', $user->role) === 'user' ? 'selected' : '' }}>User</option>
+                        <option value="guru" {{ old('role', $user->role) === 'guru' ? 'selected' : '' }}>Guru</option>
                         <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Admin</option>
                     </select>
                     @error('role')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="row mb-6">
+                <label class="col-lg-4 col-form-label fw-semibold fs-6">No HP</label>
+                <div class="col-lg-8">
+                    <input type="text" name="no_hp" class="form-control form-control-lg form-control-solid @error('no_hp') is-invalid @enderror"
+                        value="{{ old('no_hp', $user->no_hp) }}" placeholder="Nomor HP guru (opsional)"/>
+                    @error('no_hp')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
+            <div class="row mb-6">
+                <label class="col-lg-4 col-form-label fw-semibold fs-6">Jabatan</label>
+                <div class="col-lg-8">
+                    <input type="text" name="jabatan" class="form-control form-control-lg form-control-solid @error('jabatan') is-invalid @enderror"
+                        value="{{ old('jabatan', $user->jabatan) }}" placeholder="Contoh: Guru BK / Wali Kelas"/>
+                    @error('jabatan')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>

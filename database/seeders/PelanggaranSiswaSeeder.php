@@ -19,6 +19,10 @@ class PelanggaranSiswaSeeder extends Seeder
             return;
         }
 
+        if (PelanggaranSiswa::exists()) {
+            return;
+        }
+
         $catatanSample = [
             'Terlambat masuk sekolah' => [
                 'Terlambat karena kesiangan bangun tidur.',

@@ -14,7 +14,7 @@
 @endsection
 
 @section('content')
-<div class="row g-5 g-xl-10">
+<div class="row g-4 g-xl-8 guru-scan-layout">
     <!-- Camera/Scanner Section -->
     <div class="col-lg-6 col-xl-5 mb-5 mb-xl-0">
         <div class="card card-flush h-lg-100 shadow-sm border-0">
@@ -73,6 +73,12 @@
                     </div>
 
                     <!-- Camera selector if multiple exist -->
+                    <div class="d-flex flex-wrap gap-2 mb-4" id="quality_badges">
+                        <span class="badge badge-light-secondary fw-semibold" id="quality_score_badge">Kualitas: -</span>
+                        <span class="badge badge-light-secondary fw-semibold" id="brightness_badge">Cahaya: -</span>
+                        <span class="badge badge-light-secondary fw-semibold" id="blur_badge">Stabil: -</span>
+                    </div>
+
                     <div class="form-group mb-0 d-none" id="camera_selector_group">
                         <label class="fs-8 fw-semibold text-gray-700 mb-1">Pilih Sumber Kamera:</label>
                         <select id="camera_select" class="form-select form-select-sm form-select-solid"></select>
@@ -221,6 +227,59 @@
     </div>
 </div>
 
+<div class="card card-flush shadow-sm border-0 mt-5">
+    <div class="card-header border-0 pt-5">
+        <h3 class="card-title align-items-start flex-column">
+            <span class="card-label fw-bold text-gray-900 fs-4 mb-1">Riwayat Pelaporan</span>
+            <span class="text-muted mt-1 fw-semibold fs-7">
+                {{ auth()->user()->role === 'guru' ? '10 laporan terakhir yang Anda catat' : '10 laporan terbaru dari semua petugas' }}
+            </span>
+        </h3>
+    </div>
+    <div class="card-body pt-0">
+        @if($riwayatGuru->isEmpty())
+            <div class="text-center py-8">
+                <i class="ki-duotone ki-note-2 text-gray-300 fs-3x"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                <div class="fw-bold text-gray-700 mt-3">Belum ada riwayat pelaporan</div>
+                <div class="text-muted fs-7">Laporan dari halaman scan akan muncul di sini.</div>
+            </div>
+        @else
+            <div class="table-responsive">
+                <table class="table align-middle table-row-dashed gy-4 mb-0">
+                    <thead>
+                        <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase">
+                            <th>Tanggal</th>
+                            <th>Siswa</th>
+                            <th>Pelanggaran</th>
+                            <th>Poin</th>
+                            <th>Status</th>
+                            <th>Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody class="fw-semibold text-gray-700">
+                        @foreach($riwayatGuru as $item)
+                            <tr>
+                                <td class="text-nowrap">{{ optional($item->tanggal_pelanggaran)->format('d/m/Y') ?? '-' }}</td>
+                                <td>
+                                    <div class="fw-bold text-gray-900">{{ $item->siswa->nama ?? '-' }}</div>
+                                    <div class="text-muted fs-8">{{ $item->siswa->kelas ?? '-' }} / {{ $item->siswa->jurusan ?? '-' }}</div>
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ $item->pelanggaran->nama_pelanggaran ?? '-' }}</div>
+                                    <div class="text-muted fs-8">{{ $item->pelanggaran->kategori->nama ?? '-' }}</div>
+                                </td>
+                                <td><span class="badge badge-light-danger fw-bold">{{ $item->poin }} Poin</span></td>
+                                <td><span class="badge badge-light-primary fw-bold">{{ $item->status_penanganan }}</span></td>
+                                <td class="min-w-150px">{{ $item->catatan ?: '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+</div>
+
 <style>
 /* CSS Keyframes for Scan Effect animation */
 @keyframes scanAnimation {
@@ -232,6 +291,32 @@
     }
     100% {
         top: 0%;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .guru-scan-layout .card {
+        border-radius: 8px;
+    }
+    #kt_content_container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    #result_container .row > label {
+        padding-bottom: 0.35rem;
+    }
+    #form_catat_pelanggaran .form-control-lg,
+    #form_catat_pelanggaran .form-select-lg {
+        min-height: 48px;
+        font-size: 1rem;
+    }
+    #form_catat_pelanggaran .d-flex.justify-content-end {
+        justify-content: stretch !important;
+        flex-direction: column-reverse;
+    }
+    #form_catat_pelanggaran .btn {
+        width: 100%;
+        min-height: 48px;
     }
 }
 </style>
@@ -253,6 +338,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusAlert = document.getElementById('scanner_status_alert');
     const statusAlertTitle = document.getElementById('status_alert_title');
     const statusAlertDesc = document.getElementById('status_alert_desc');
+    const qualityScoreBadge = document.getElementById('quality_score_badge');
+    const brightnessBadge = document.getElementById('brightness_badge');
+    const blurBadge = document.getElementById('blur_badge');
     const cameraSelect = document.getElementById('camera_select');
     const cameraSelectorGroup = document.getElementById('camera_selector_group');
     
@@ -283,13 +371,14 @@ document.addEventListener('DOMContentLoaded', function () {
     let isScanningActive = false;
     let selectedCameraId = null;
 
-    // Multi-frame voting state.
-    // Sistem kumpulkan FRAME_BUFFER_SIZE hasil scan, lalu ambil label yang
-    // paling sering muncul (>= VOTE_MIN_WIN) dengan rata-rata distance < 60.
-    // Ini menahan one-off noisy frame agar tidak salah identifikasi siswa.
-    const FRAME_BUFFER_SIZE = 5;
-    const VOTE_MIN_WIN = 3;
-    const STRICT_DISTANCE = 60.0;
+    // Multi-frame voting state. Buffer dibuat lebih panjang agar satu frame noisy
+    // tidak langsung mengunci siswa yang salah.
+    const FRAME_BUFFER_SIZE = 9;
+    const VOTE_MIN_WIN = 6;
+    const STRICT_DISTANCE = 58.0;
+    const MAX_DISTANCE_SPREAD = 12.0;
+    const MIN_QUALITY_SCORE = 0.55;
+    const MIN_CANDIDATE_MARGIN = 6.0;
     let frameBuffer = []; // each entry: { studentId, distance, siswa }
     let lastVotedStudentId = null;
 
@@ -392,10 +481,67 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (type === 'primary') {
             statusAlert.classList.add('bg-light-primary', 'border-primary');
             statusAlert.querySelector('i').className = 'ki-duotone ki-compass fs-2hx text-primary me-4 mb-5 mb-sm-0';
+        } else if (type === 'warning') {
+            statusAlert.classList.add('bg-light-warning', 'border-warning');
+            statusAlert.querySelector('i').className = 'ki-duotone ki-information-5 fs-2hx text-warning me-4 mb-5 mb-sm-0';
         } else {
             statusAlert.classList.add('bg-light-secondary', 'border-secondary');
             statusAlert.querySelector('i').className = 'ki-duotone ki-information-3 fs-2hx text-gray-500 me-4 mb-5 mb-sm-0';
         }
+    }
+
+    function setBadgeState(el, label, value, type = 'secondary') {
+        if (!el) return;
+        el.innerText = `${label}: ${value}`;
+        el.classList.remove('badge-light-secondary', 'badge-light-success', 'badge-light-warning', 'badge-light-danger');
+        el.classList.add(`badge-light-${type}`);
+    }
+
+    function updateQualityUI(res) {
+        const quality = Number(res.quality_score ?? 0);
+        const brightness = res.brightness;
+        const blurScore = res.blur_score;
+
+        if (res.face_detected === false) {
+            setBadgeState(qualityScoreBadge, 'Kualitas', 'wajah belum terbaca', 'warning');
+            setBadgeState(brightnessBadge, 'Cahaya', '-', 'secondary');
+            setBadgeState(blurBadge, 'Stabil', '-', 'secondary');
+            return;
+        }
+
+        const qualityPct = Math.round(Math.max(0, Math.min(1, quality)) * 100);
+        setBadgeState(
+            qualityScoreBadge,
+            'Kualitas',
+            `${qualityPct}%`,
+            quality >= 0.75 ? 'success' : (quality >= MIN_QUALITY_SCORE ? 'warning' : 'danger')
+        );
+
+        if (brightness == null) {
+            setBadgeState(brightnessBadge, 'Cahaya', '-', 'secondary');
+        } else {
+            const brightValue = Number(brightness).toFixed(0);
+            setBadgeState(
+                brightnessBadge,
+                'Cahaya',
+                brightValue,
+                brightness >= 45 && brightness <= 215 ? 'success' : 'danger'
+            );
+        }
+
+        if (blurScore == null) {
+            setBadgeState(blurBadge, 'Stabil', '-', 'secondary');
+        } else {
+            const blurValue = Number(blurScore).toFixed(0);
+            setBadgeState(blurBadge, 'Stabil', blurValue, blurScore >= 35 ? 'success' : 'danger');
+        }
+    }
+
+    function qualityMessage(res) {
+        if (Array.isArray(res.reject_reasons) && res.reject_reasons.length > 0) {
+            return res.reject_reasons.join(' ');
+        }
+        return res.message || 'Pastikan wajah menghadap kamera, cukup terang, dan tidak terlalu jauh.';
     }
 
     // Start continuous scan check every 1.5 seconds
@@ -443,24 +589,32 @@ document.addEventListener('DOMContentLoaded', function () {
         // Cari label dengan count tertinggi
         let winnerId = null;
         let winnerCount = 0;
-        let winnerSumDistance = 0;
+        let winnerInfo = null;
         for (const [sid, info] of Object.entries(groups)) {
             if (info.count > winnerCount) {
                 winnerId = parseInt(sid, 10);
                 winnerCount = info.count;
-                winnerSumDistance = info.sumDistance;
+                winnerInfo = info;
             }
         }
 
         if (winnerId == null) return null;
 
-        const avgDistance = winnerSumDistance / winnerCount;
-        const readyToLock = winnerCount >= VOTE_MIN_WIN && avgDistance < STRICT_DISTANCE;
+        const avgDistance = winnerInfo.sumDistance / winnerCount;
+        const distanceSpread = Math.max(...winnerInfo.distances) - Math.min(...winnerInfo.distances);
+        const challenger = Object.entries(groups)
+            .filter(([sid]) => parseInt(sid, 10) !== winnerId)
+            .sort((a, b) => b[1].count - a[1].count)[0] || null;
+        const challengerCount = challenger ? challenger[1].count : 0;
+        const stableMajority = winnerCount >= VOTE_MIN_WIN && (winnerCount - challengerCount) >= 2;
+        const readyToLock = stableMajority && avgDistance < STRICT_DISTANCE && distanceSpread <= MAX_DISTANCE_SPREAD;
 
         return {
             studentId: winnerId,
             count: winnerCount,
             avgDistance: avgDistance,
+            distanceSpread: distanceSpread,
+            challengerCount: challengerCount,
             totalFrames: frameBuffer.length,
             readyToLock: readyToLock
         };
@@ -478,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 'success');
         } else {
             updateStatus('Konfirmasi identitas',
-                `Sedang mengonfirmasi: ${vote.count}/${vote.totalFrames} frame cocok, butuh ${VOTE_MIN_WIN} frame.`,
+                `Sedang mengonfirmasi: ${vote.count}/${vote.totalFrames} frame cocok, avg distance ${vote.avgDistance.toFixed(1)}.`,
                 'primary');
         }
     }
@@ -499,6 +653,7 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(response => {
             const res = response.data;
+            updateQualityUI(res);
 
             // Jika service melaporkan model belum dilatih, hentikan scanning
             if (res.message && res.message.includes('belum dilatih')) {
@@ -518,11 +673,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // Wajah tidak terdeteksi: reset buffer (mulai ulang konfirmasi)
+            // Wajah tidak terdeteksi / kualitas kurang: reset buffer (mulai ulang konfirmasi)
             if (!res.recognized) {
                 if (res.message && res.message.includes('Wajah tidak terdeteksi')) {
                     clearFrameBuffer();
-                    updateStatus('Memindai...', 'Posisikan wajah siswa dengan jelas di area框框.', 'primary');
+                    updateStatus('Memindai...', 'Posisikan wajah siswa dengan jelas di area kamera.', 'primary');
+                } else if (res.match_level === 'quality_reject' || (Array.isArray(res.reject_reasons) && res.reject_reasons.length > 0)) {
+                    clearFrameBuffer();
+                    updateStatus('Kualitas Scan Kurang', qualityMessage(res), 'warning');
+                } else if (res.match_level === 'ambiguous') {
+                    clearFrameBuffer();
+                    updateStatus('Wajah Belum Stabil', res.message || 'Kandidat wajah terlalu dekat. Ulangi scan dengan posisi lebih stabil.', 'warning');
                 } else if (res.message && res.message.includes('tidak dikenali')) {
                     // Wajah terdeteksi tapi tidak cocok: anggap sebagai "noisy frame"
                     // masukkan null student ke buffer agar voting tahu ada frame gagal.
@@ -545,6 +706,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const distance = res.distance ?? (res.top_match && res.top_match.distance) ?? 999;
             const matchStrength = res.match_strength ?? (res.top_match && res.top_match.match_strength) ?? 0;
             const matchLevel = res.match_level ?? (res.top_match && res.top_match.match_level) ?? null;
+            const candidateMargin = res.candidate_margin ?? null;
             const siswa = res.siswa ?? null;
 
             if (studentId == null) {
@@ -552,7 +714,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, siswa: siswa, recognized: true });
+            if (Number(res.quality_score ?? 1) < MIN_QUALITY_SCORE) {
+                clearFrameBuffer();
+                updateStatus('Kualitas Scan Kurang', qualityMessage(res), 'warning');
+                return;
+            }
+
+            if (candidateMargin !== null && Number(candidateMargin) < MIN_CANDIDATE_MARGIN && matchLevel !== 'strict') {
+                clearFrameBuffer();
+                updateStatus('Wajah Belum Stabil', 'Kandidat wajah terlalu dekat. Dekatkan wajah dan ulangi scan.', 'warning');
+                return;
+            }
+
+            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, candidateMargin: candidateMargin, siswa: siswa, recognized: true });
             if (frameBuffer.length > FRAME_BUFFER_SIZE) frameBuffer.shift();
 
             // Live preview match strength dari frame terakhir (feedback real-time
@@ -741,6 +915,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Reset match strength indicator
         resetMatchStrengthUI();
+        setBadgeState(qualityScoreBadge, 'Kualitas', '-', 'secondary');
+        setBadgeState(brightnessBadge, 'Cahaya', '-', 'secondary');
+        setBadgeState(blurBadge, 'Stabil', '-', 'secondary');
 
         // Reset form controls
         formCatatPelanggaran.reset();
@@ -814,7 +991,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     text: response.data.message || 'Pelanggaran siswa berhasil disimpan!',
                     confirmButtonText: 'Lanjut Pindai'
                 }).then(() => {
-                    resetScanner();
+                    window.location.reload();
                 });
             } else {
                 Swal.fire({
