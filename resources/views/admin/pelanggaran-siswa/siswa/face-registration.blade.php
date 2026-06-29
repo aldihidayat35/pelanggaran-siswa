@@ -57,6 +57,12 @@
                     <span class="badge badge-light-info" id="dataset_count">{{ $initialImageCount }} Foto</span>
                 </div>
                 <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="text-muted fw-semibold">Status Wajah</span>
+                    <span class="badge {{ $initialImageCount > 0 ? 'badge-light-success' : 'badge-light-danger' }}" id="face_status_badge">
+                        {{ $initialImageCount > 0 ? 'Terdaftar' : 'Belum Terdaftar' }}
+                    </span>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
                     <span class="text-muted fw-semibold">Service FR</span>
                     <span class="badge badge-light-{{ $serviceOnline ? 'success' : 'danger' }}" id="service_status">
                         {{ $serviceOnline ? 'Online' : 'Offline' }}

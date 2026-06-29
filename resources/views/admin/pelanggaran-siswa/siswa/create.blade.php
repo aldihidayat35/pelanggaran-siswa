@@ -169,7 +169,7 @@
             <div class="row mb-6">
                 <label class="col-lg-4 col-form-label required fw-semibold fs-6">Status</label>
                 <div class="col-lg-8">
-                    <select name="status" class="form-select form-select-solid form-select-lg @error('status') is-invalid @enderror">
+                    <select name="status" id="status-select" class="form-select form-select-solid form-select-lg @error('status') is-invalid @enderror">
                         <option value="Aktif" {{ old('status', 'Aktif') === 'Aktif' ? 'selected' : '' }}>Aktif</option>
                         <option value="Tidak Aktif" {{ old('status') === 'Tidak Aktif' ? 'selected' : '' }}>Tidak Aktif</option>
                     </select>
@@ -178,6 +178,29 @@
                     @enderror
                 </div>
             </div>
+
+            <div class="separator separator-dashed my-8"></div>
+
+            <div class="row mb-3">
+                <label class="col-lg-4 col-form-label fw-bold fs-6">
+                    Pendaftaran Wajah
+                    <span class="text-muted fs-7 fw-normal d-block">Opsional. Capture wajah via webcam untuk training FR.</span>
+                </label>
+                <div class="col-lg-8">
+                    <div class="alert bg-light-info border border-info d-flex align-items-center p-4 mb-4" id="face_section_hint">
+                        <i class="ki-duotone ki-information-3 fs-2hx text-info me-4"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
+                        <div>
+                            <div class="fw-bold text-gray-800">Simpan data dulu, lalu daftar wajah.</div>
+                            <div class="text-gray-600 fs-7">Pendaftaran wajah membutuhkan ID siswa yang sudah tersimpan di database. Anda bisa melewati langkah ini dan mendaftarkan wajah nanti dari halaman detail siswa.</div>
+                        </div>
+                    </div>
+                    <a href="{{ route('pelanggaran-siswa.siswa.index') }}" class="btn btn-light-primary btn-sm">
+                        <i class="ki-duotone ki-face-id fs-3"></i> Daftar Wajah Setelah Disimpan
+                    </a>
+                </div>
+            </div>
+
+            <input type="hidden" name="face_image" id="face_image_input" value=""/>
         </div>
 
         <div class="card-footer d-flex justify-content-end py-6 px-9">
@@ -187,3 +210,11 @@
     </form>
 </div>
 @endsection
+
+@push('custom-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // No JS needed for create form; face registration happens after student is saved
+});
+</script>
+@endpush

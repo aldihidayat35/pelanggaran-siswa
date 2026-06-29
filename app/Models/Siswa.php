@@ -34,7 +34,12 @@ class Siswa extends Model
         'alamat',
         'foto',
         'status',
+        'face_registered',
         'whatsapp_token',
+    ];
+
+    protected $casts = [
+        'face_registered' => 'boolean',
     ];
 
     public const STATUS_AKTIF = 'Aktif';

@@ -179,6 +179,83 @@
                     @enderror
                 </div>
             </div>
+
+            <div class="separator separator-dashed my-8"></div>
+
+            <div class="row mb-3">
+                <label class="col-lg-4 col-form-label fw-bold fs-6">
+                    Pendaftaran Wajah
+                    <span class="text-muted fs-7 fw-normal d-block">Opsional. Capture wajah via webcam untuk training FR.</span>
+                </label>
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="text-muted fw-semibold">Status Wajah</span>
+                        @php
+                            $initialCount = (int) ($dataset['image_count'] ?? 0);
+                            $registered = $siswa->face_registered || $initialCount > 0;
+                        @endphp
+                        <span id="face_status_badge_edit" class="badge {{ $registered ? 'badge-light-success' : 'badge-light-danger' }}">
+                            {{ $registered ? 'Wajah Terdaftar' : 'Belum Terdaftar' }}
+                        </span>
+                    </div>
+
+                    <div class="row g-5">
+                        <div class="col-md-6">
+                            <div class="card border border-2 border-dashed border-primary h-100">
+                                <div class="card-body p-4 text-center">
+                                    <video id="webcam_edit" autoplay playsinline muted class="w-100 rounded mb-3" style="max-height:280px; background:#000;"></video>
+                                    <div class="d-flex gap-2 justify-content-center">
+                                        <button type="button" id="capture_btn_edit" class="btn btn-primary btn-sm">
+                                            <i class="ki-duotone ki-camera fs-3"></i> Capture
+                                        </button>
+                                        <button type="button" id="stop_btn_edit" class="btn btn-light btn-sm">
+                                            <i class="ki-duotone ki-cross fs-3"></i> Stop
+                                        </button>
+                                    </div>
+                                    <div id="camera_error_edit" class="text-danger fs-7 mt-2" style="display:none;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border h-100">
+                                <div class="card-body p-4 text-center">
+                                    <canvas id="snapshot_canvas_edit" class="w-100 rounded mb-3 d-none" style="max-height:280px;"></canvas>
+                                    <div id="snapshot_placeholder_edit" class="text-muted fs-7 py-5">
+                                        <i class="ki-duotone ki-picture fs-5x text-muted mb-3 d-block"><span class="path1"></span><span class="path2"></span></i>
+                                        Preview capture muncul di sini.
+                                    </div>
+                                    <div class="d-flex gap-2 justify-content-center">
+                                        <button type="button" id="retake_btn_edit" class="btn btn-light btn-sm d-none">
+                                            <i class="ki-duotone ki-arrows-loop fs-3"></i> Ulangi
+                                        </button>
+                                        <button type="button" id="use_btn_edit" class="btn btn-success btn-sm d-none">
+                                            <i class="ki-duotone ki-check fs-3"></i> Pakai
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fs-7">Service FR:</span>
+                            <span class="badge badge-light-{{ $health['success'] ?? false ? 'success' : 'danger' }} ms-1">
+                                {{ ($health['success'] ?? false) ? 'Online' : 'Offline' }}
+                            </span>
+                            <span class="text-muted fs-7 ms-3">Dataset:</span>
+                            <span id="dataset_count_edit" class="badge badge-light-info ms-1">{{ $initialCount }} Foto</span>
+                        </div>
+                        <a href="{{ route('pelanggaran-siswa.siswa.face-registration', $siswa) }}" class="btn btn-light-info btn-sm">
+                            <i class="ki-duotone ki-face-id fs-3"></i> Halaman Penuh
+                        </a>
+                    </div>
+
+                    <div class="form-text mt-2">Capture foto lalu klik "Pakai". Foto akan dikirim bersamaan saat Anda menyimpan form ini.</div>
+                </div>
+            </div>
+
+            <input type="hidden" name="face_image" id="face_image_input_edit" value=""/>
         </div>
 
         <div class="card-footer d-flex justify-content-end py-6 px-9">
@@ -188,3 +265,89 @@
     </form>
 </div>
 @endsection
+
+@push('custom-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const video = document.getElementById('webcam_edit');
+    const canvas = document.getElementById('snapshot_canvas_edit');
+    const placeholder = document.getElementById('snapshot_placeholder_edit');
+    const captureBtn = document.getElementById('capture_btn_edit');
+    const stopBtn = document.getElementById('stop_btn_edit');
+    const retakeBtn = document.getElementById('retake_btn_edit');
+    const useBtn = document.getElementById('use_btn_edit');
+    const errBox = document.getElementById('camera_error_edit');
+    const hiddenInput = document.getElementById('face_image_input_edit');
+
+    if (!video || !captureBtn) return;
+
+    let stream = null;
+
+    async function startCamera() {
+        try {
+            errBox.style.display = 'none';
+            stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 }, audio: false });
+            video.srcObject = stream;
+        } catch (e) {
+            errBox.textContent = 'Tidak dapat mengakses webcam: ' + e.message;
+            errBox.style.display = 'block';
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+        video.srcObject = null;
+    }
+
+    captureBtn.addEventListener('click', function () {
+        if (!stream) { startCamera(); return; }
+        const w = video.videoWidth || 480;
+        const h = video.videoHeight || 360;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, w, h);
+        canvas.classList.remove('d-none');
+        placeholder.classList.add('d-none');
+        retakeBtn.classList.remove('d-none');
+        useBtn.classList.remove('d-none');
+    });
+
+    stopBtn.addEventListener('click', function () {
+        stopCamera();
+    });
+
+    retakeBtn.addEventListener('click', function () {
+        canvas.classList.add('d-none');
+        placeholder.classList.remove('d-none');
+        retakeBtn.classList.add('d-none');
+        useBtn.classList.add('d-none');
+        hiddenInput.value = '';
+    });
+
+    useBtn.addEventListener('click', function () {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        hiddenInput.value = dataUrl;
+        // Optimistically mark as registered for visual feedback after save
+        const badge = document.getElementById('face_status_badge_edit');
+        if (badge) {
+            badge.classList.remove('badge-light-danger');
+            badge.classList.add('badge-light-success');
+            badge.textContent = 'Akan Tersimpan';
+        }
+        stopCamera();
+    });
+
+    // Auto-start camera when form mounts
+    startCamera();
+
+    // Stop camera on form submit to release the resource
+    document.querySelector('form').addEventListener('submit', function () {
+        stopCamera();
+    });
+});
+</script>
+@endpush

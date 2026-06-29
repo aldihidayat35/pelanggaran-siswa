@@ -36,7 +36,22 @@
                     
                     <!-- Video stream -->
                     <video id="video_stream" autoplay playsinline class="w-100 h-100" style="object-fit: cover; display: none;"></video>
-                    
+
+                    <!-- Voting progress overlay: circular SVG yang menampilkan
+                         konsistensi hasil voting buffer secara real-time.
+                         Hidden saat kamera nonaktif; ditunjukkan saat scanning. -->
+                    <div id="voting_circle" class="voting-circle-overlay d-none" aria-live="polite">
+                        <svg viewBox="0 0 120 120" width="180" height="180" aria-hidden="true">
+                            <circle class="voting-circle-track" cx="60" cy="60" r="52"></circle>
+                            <circle id="voting_circle_fill" class="voting-circle-fill" cx="60" cy="60" r="52"
+                                    stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle>
+                        </svg>
+                        <div class="voting-circle-label">
+                            <span id="voting_circle_count">0/9</span>
+                            <small id="voting_circle_status">Mengumpulkan…</small>
+                        </div>
+                    </div>
+
                     <!-- Camera Placeholder/Loader -->
                     <div id="camera_placeholder" class="text-center p-5 text-gray-500 d-flex flex-column align-items-center">
                         <div class="symbol symbol-60px symbol-circle mb-3 bg-light-dark d-flex align-items-center justify-content-center">
@@ -60,7 +75,7 @@
                 </div>
 
                 <!-- Hidden Canvas for frame extraction -->
-                <canvas id="frame_canvas" class="d-none" width="640" height="480"></canvas>
+                <canvas id="frame_canvas" class="d-none" width="320" height="240"></canvas>
 
                 <!-- Scanning Status & Controls -->
                 <div class="w-100">
@@ -319,6 +334,61 @@
         min-height: 48px;
     }
 }
+
+/* === Voting progress circle overlay ===
+   SVG circular progress yang menampilkan konsistensi voting buffer
+   secara real-time. Warna berubah sesuai kualitas voting. */
+.voting-circle-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: none;
+    z-index: 5;
+}
+.voting-circle-overlay.d-none { display: none !important; }
+
+#voting_circle_fill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 60px 60px;
+    transition: stroke-dashoffset 220ms ease-out, stroke 180ms ease;
+    stroke: #1abc9c;
+}
+.voting-circle-track {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 8;
+}
+.voting-circle-label {
+    position: absolute;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+.voting-circle-label span { font-size: 28px; display: block; }
+.voting-circle-label small {
+    font-size: 11px;
+    opacity: 0.85;
+    text-transform: uppercase;
+    display: block;
+    margin-top: 2px;
+}
+
+.voting-circle-overlay.is-warning #voting_circle_fill { stroke: #f1c40f; }
+.voting-circle-overlay.is-danger  #voting_circle_fill { stroke: #e74c3c; }
+.voting-circle-overlay.is-locked  #voting_circle_fill { stroke: #2ecc71; }
+.voting-circle-overlay.is-locked  { animation: vc-pulse 1.2s ease-in-out 2; }
+@keyframes vc-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
+}
 </style>
 @endsection
 
@@ -371,16 +441,84 @@ document.addEventListener('DOMContentLoaded', function () {
     let isScanningActive = false;
     let selectedCameraId = null;
 
-    // Multi-frame voting state. Buffer dibuat lebih panjang agar satu frame noisy
-    // tidak langsung mengunci siswa yang salah.
-    const FRAME_BUFFER_SIZE = 9;
-    const VOTE_MIN_WIN = 6;
+    // Multi-frame voting state. Buffer pendek (6) + WIN_COUNT 4 = median lock
+    // ~4-5s dengan scan interval 700ms. Margin 2 challenger tetap dipertahankan
+    // untuk anti-flicker.
+    const FRAME_BUFFER_SIZE = 6;
+    const VOTE_MIN_WIN = 4;
     const STRICT_DISTANCE = 58.0;
     const MAX_DISTANCE_SPREAD = 12.0;
     const MIN_QUALITY_SCORE = 0.55;
     const MIN_CANDIDATE_MARGIN = 6.0;
-    let frameBuffer = []; // each entry: { studentId, distance, siswa }
+    // Konstanta tambahan untuk voting upgrade: time-decay + confirmation hold.
+    // Voting pass harus stabil selama VOTE_CONFIRM_HOLD_MS dan diulang
+    // VOTE_CONFIRM_PASSES kali sebelum lock benar-benar fire.
+    const VOTE_TIME_DECAY_MS = 2500;
+    const VOTE_CONFIRM_HOLD_MS = 350;
+    const VOTE_CONFIRM_PASSES = 2;
+    // Scan interval adaptif: idle (tidak ada wajah) = IDLE_SCAN_INTERVAL_MS,
+    // face terlihat = FAST_SCAN_INTERVAL_MS.
+    const IDLE_SCAN_INTERVAL_MS = 1200;
+    const FAST_SCAN_INTERVAL_MS = 650;
+    let currentScanIntervalMs = IDLE_SCAN_INTERVAL_MS;
+    let frameBuffer = []; // each entry: { studentId, distance, siswa, ts, ... }
     let lastVotedStudentId = null;
+    let consecutivePasses = 0;
+    let firstPassAt = 0;
+    let lastFaceDetected = false; // adaptive scan interval hint
+
+    // UI element untuk voting circle overlay
+    const votingCircle = document.getElementById('voting_circle');
+    const votingCircleFill = document.getElementById('voting_circle_fill');
+    const votingCircleCount = document.getElementById('voting_circle_count');
+    const votingCircleStatus = document.getElementById('voting_circle_status');
+
+    // Voting circle driver: tampilkan/sembunyikan + update isi sesuai vote.
+    function showVotingCircle() {
+        if (votingCircle) votingCircle.classList.remove('d-none');
+    }
+    function hideVotingCircle() {
+        if (!votingCircle) return;
+        votingCircle.classList.add('d-none');
+        votingCircle.classList.remove('is-warning', 'is-danger', 'is-locked');
+    }
+    function updateVotingCircle(vote) {
+        if (!vote || !votingCircle) {
+            hideVotingCircle();
+            return;
+        }
+        showVotingCircle();
+        votingCircle.classList.remove('is-warning', 'is-danger', 'is-locked');
+
+        const total = vote.totalFrames || FRAME_BUFFER_SIZE;
+        const ratio = Math.max(0, Math.min(1, vote.count / total));
+        const offset = 326.7 * (1 - ratio);
+        if (votingCircleFill) {
+            votingCircleFill.setAttribute('stroke-dashoffset', offset.toFixed(2));
+        }
+        if (votingCircleCount) {
+            votingCircleCount.textContent = `${vote.count}/${total}`;
+        }
+
+        let label = 'Mengumpulkan';
+        if (vote.readyToLock) {
+            label = 'Terkonfirmasi';
+            votingCircle.classList.add('is-locked');
+        } else if (
+            vote.avgDistance >= STRICT_DISTANCE * 0.85
+            || vote.distanceSpread > MAX_DISTANCE_SPREAD * 0.85
+        ) {
+            label = 'Belum stabil';
+            votingCircle.classList.add('is-warning');
+        } else if (
+            vote.challengerCount > 0
+            && (vote.count - vote.challengerCount) < 2
+        ) {
+            label = 'Kandidat ambigu';
+            votingCircle.classList.add('is-danger');
+        }
+        if (votingCircleStatus) votingCircleStatus.textContent = label;
+    }
 
     // Load available video devices
     async function getCameraDevices() {
@@ -550,16 +688,39 @@ document.addEventListener('DOMContentLoaded', function () {
         isScanningActive = true;
         // Reset voting buffer setiap kali scan dimulai ulang.
         frameBuffer = [];
+        lastFaceDetected = false;
+        currentScanIntervalMs = IDLE_SCAN_INTERVAL_MS;
         updateStatus('Memindai...', 'Sistem sedang menganalisis wajah secara real-time.', 'primary');
 
-        scanInterval = setInterval(captureAndScan, 1500);
+        scheduleNextScan(0);
+    }
+
+    // Adaptive scheduler: setTimeout rekursif yang auto-tune interval berdasarkan
+    // apakah wajah terdeteksi. Lebih cepat tanggap dibanding setInterval karena
+    // bisa langsung jadwalkan scan berikutnya begitu response datang — kita
+    // tunggu response + interval adaptif (bukan interval + response), jadi total
+    // cycle = max(interval, response_latency).
+    function scheduleNextScan(delayMs) {
+        if (!isScanningActive) return;
+        scanInterval = setTimeout(() => {
+            scanInterval = null;
+            captureAndScan();
+        }, delayMs);
+    }
+
+    // Update interval: naik ke fast-track saat face terdeteksi, turun ke idle
+    // saat tidak ada (hemat CPU + HTTP request).
+    function updateScanInterval(faceVisible) {
+        const target = faceVisible ? FAST_SCAN_INTERVAL_MS : IDLE_SCAN_INTERVAL_MS;
+        if (target === currentScanIntervalMs) return;
+        currentScanIntervalMs = target;
     }
 
     // Stop scanning loop
     function stopScanningLoop() {
         isScanningActive = false;
         if (scanInterval) {
-            clearInterval(scanInterval);
+            clearTimeout(scanInterval);
             scanInterval = null;
         }
     }
@@ -567,11 +728,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // Reset voting buffer (dipakai saat reset scanner atau setelah match terkunci)
     function clearFrameBuffer() {
         frameBuffer = [];
+        consecutivePasses = 0;
+        firstPassAt = 0;
+        hideVotingCircle();
     }
 
     // Voting multi-frame: hitung label yang paling sering muncul dengan avg distance < 60.
     // Return {studentId, count, avgDistance, readyToLock} atau null jika belum siap.
     function evaluateFrameBuffer() {
+        if (frameBuffer.length === 0) return null;
+
+        // Time-decay: drop frame lebih lama dari VOTE_TIME_DECAY_MS (stale frames
+        // tidak boleh ikut voting). Scan interval 1.5s, decay 2.5s = max ~2
+        // frame aktif per kali — pemenang tetap harus konsisten lintas scan.
+        const now = performance.now();
+        frameBuffer = frameBuffer.filter(f => {
+            const ts = typeof f.ts === 'number' ? f.ts : now;
+            return (now - ts) <= VOTE_TIME_DECAY_MS;
+        });
         if (frameBuffer.length === 0) return null;
 
         // Group by student_id
@@ -637,21 +811,40 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Capture Frame and send to Server for recognition
+    // Capture Frame and send to Server for recognition.
+    // Strategi overlap: jadwalkan scan berikut LANGSUNG setelah request terkirim,
+    // bukan menunggu response. Response datang di callback lalu update interval
+    // adaptif. Total cycle = max(interval, response_latency) — biasanya response
+    // latency > interval jadi kita tidak idle menunggu response.
     function captureAndScan() {
         if (!isScanningActive || !stream) return;
 
-        // Draw current video frame to hidden canvas
+        // Anti-overlap guard: kalau ada request yang masih in-flight, skip cycle ini
+        // (lebih aman daripada menumpuk antrian axios).
+        if (window.__scanInFlight) {
+            scheduleNextScan(currentScanIntervalMs);
+            return;
+        }
+        window.__scanInFlight = true;
+
+        // Draw current video frame ke hidden canvas (320×240 — payload 6× lebih
+        // kecil dari 640×480. Haar Cascade robust di 320×240, akurasi tetap.)
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Convert canvas image to base64 jpeg
-        const base64Image = canvas.toDataURL('image/jpeg', 0.85);
+        // JPEG quality 0.7 — bandwidth turun ~40% vs 0.85, visually tetap readable.
+        const base64Image = canvas.toDataURL('image/jpeg', 0.7);
 
-        // Send to Laravel controller via AJAX
+        // Schedule scan berikut segera setelah request terkirim (overlap).
+        // Kita pakai setTimeout recursive (bukan setInterval) supaya bisa tune
+        // interval adaptif tiap response.
+        scheduleNextScan(currentScanIntervalMs);
+
+        // Kirim ke Laravel controller via AJAX.
         axios.post("{{ route('guru.face-recognition.scan') }}", {
             image: base64Image
         })
         .then(response => {
+            window.__scanInFlight = false;
             const res = response.data;
             updateQualityUI(res);
 
@@ -670,8 +863,15 @@ document.addEventListener('DOMContentLoaded', function () {
             // Jika service error/koneksi mati
             if (!res.success) {
                 updateStatus('Koneksi Error', res.message || 'Gagal terhubung ke service face recognition.', 'danger');
+                // Slow down jika error/hang supaya tidak spam request.
+                updateScanInterval(false);
                 return;
             }
+
+            // Adaptive interval: ada wajah di frame = fast, tidak ada = idle.
+            const faceVisible = !!res.face_detected;
+            updateScanInterval(faceVisible);
+            lastFaceDetected = faceVisible;
 
             // Wajah tidak terdeteksi / kualitas kurang: reset buffer (mulai ulang konfirmasi)
             if (!res.recognized) {
@@ -687,10 +887,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (res.message && res.message.includes('tidak dikenali')) {
                     // Wajah terdeteksi tapi tidak cocok: anggap sebagai "noisy frame"
                     // masukkan null student ke buffer agar voting tahu ada frame gagal.
-                    frameBuffer.push({ studentId: null, distance: 999, siswa: null, recognized: false });
+                    frameBuffer.push({ studentId: null, distance: 999, siswa: null, recognized: false, ts: performance.now() });
                     if (frameBuffer.length > FRAME_BUFFER_SIZE) frameBuffer.shift();
                     const vote = evaluateFrameBuffer();
                     updateVotingStatus(vote);
+                    updateVotingCircle(vote);
                 } else {
                     updateStatus('Wajah Tidak Dikenali', res.message || 'Wajah tidak cocok dengan database siswa.', 'danger');
                 }
@@ -726,7 +927,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, candidateMargin: candidateMargin, siswa: siswa, recognized: true });
+            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, candidateMargin: candidateMargin, siswa: siswa, recognized: true, ts: performance.now() });
             if (frameBuffer.length > FRAME_BUFFER_SIZE) frameBuffer.shift();
 
             // Live preview match strength dari frame terakhir (feedback real-time
@@ -736,13 +937,37 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const vote = evaluateFrameBuffer();
             updateVotingStatus(vote);
+            updateVotingCircle(vote);
 
-            // Lock hanya jika voting majority + avg distance strict
-            if (vote && vote.readyToLock && vote.studentId !== lastVotedStudentId) {
+            // Lock hanya jika voting majority + avg distance strict DAN
+            // confirmation hold terpenuhi (VOTE_CONFIRM_PASSES × VOTE_CONFIRM_HOLD_MS).
+            // Tanpa hold, satu cluster pass langsung lock — hold mencegah
+            // lock prematur saat wajah baru muncul di area scan.
+            const nowMs = performance.now();
+            if (vote && vote.readyToLock) {
+                if (consecutivePasses === 0) {
+                    firstPassAt = nowMs;
+                }
+                if (nowMs - firstPassAt >= VOTE_CONFIRM_HOLD_MS) {
+                    consecutivePasses++;
+                } else {
+                    consecutivePasses = 1;
+                }
+            } else {
+                consecutivePasses = 0;
+                firstPassAt = 0;
+            }
+
+            if (consecutivePasses >= VOTE_CONFIRM_PASSES
+                && vote
+                && vote.studentId !== lastVotedStudentId) {
+                consecutivePasses = 0;
+                firstPassAt = 0;
                 lockStudentMatch(vote.studentId);
             }
         })
         .catch(error => {
+            window.__scanInFlight = false;
             console.error('AJAX scan error:', error);
             const msg = error.response?.data?.message || 'Gagal terhubung ke service face recognition.';
             updateStatus('Koneksi Error', msg, 'danger');
@@ -755,6 +980,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function lockStudentMatch(studentId) {
         stopScanningLoop();
         lastVotedStudentId = studentId;
+
+        // Tampilkan state "locked" (lingkaran hijau pulse) sebentar sebagai
+        // feedback visual ke operator bahwa voting sudah terkonfirmasi.
+        if (votingCircle && !votingCircle.classList.contains('d-none')) {
+            votingCircle.classList.add('is-locked');
+            votingCircle.classList.remove('is-warning', 'is-danger');
+            setTimeout(() => hideVotingCircle(), 1500);
+        }
+        consecutivePasses = 0;
+        firstPassAt = 0;
 
         // Cari data siswa dari frame buffer
         const winnerEntries = frameBuffer.filter(f => f.studentId === studentId && f.siswa);
@@ -880,20 +1115,39 @@ document.addEventListener('DOMContentLoaded', function () {
         toastr.success(`Siswa berhasil dikenali: ${siswa.nama}`);
     }
 
+    // AudioContext singleton — instansiasi satu kali per sesi, jauh lebih
+    // murah daripada create new setiap beep (yang lama di lockStudentMatch).
+    let _audioCtx = null;
+    function getAudioCtx() {
+        if (!_audioCtx) {
+            try {
+                _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                return null;
+            }
+        }
+        // Beberapa browser suspend AudioContext jika tidak ada user gesture.
+        if (_audioCtx && _audioCtx.state === 'suspended') {
+            _audioCtx.resume();
+        }
+        return _audioCtx;
+    }
+
     // Play Beep Sound using Web Audio API
     function playBeep(freq, duration, vol) {
         try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const audioCtx = getAudioCtx();
+            if (!audioCtx) return;
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
-            
+
             oscillator.connect(gainNode);
             gainNode.connect(audioCtx.destination);
-            
+
             oscillator.frequency.value = freq;
             gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration/1000);
-            
+
             oscillator.start(audioCtx.currentTime);
             oscillator.stop(audioCtx.currentTime + duration/1000);
         } catch (e) {

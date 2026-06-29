@@ -60,6 +60,7 @@
                         <th class="min-w-100px">NIS / NISN</th>
                         <th class="min-w-100px">Kelas</th>
                         <th class="min-w-100px">Status</th>
+                        <th class="min-w-100px">Status Wajah</th>
                         <th class="min-w-100px">Total Poin</th>
                         <th class="text-end min-w-100px">Aksi</th>
                     </tr>
@@ -91,6 +92,7 @@
                 { data: 'nis', name: 'nis' },
                 { data: 'kelas', name: 'kelas' },
                 { data: 'status', name: 'status' },
+                { data: 'face_registered_label', name: 'face_registered_label', orderable: false, searchable: false },
                 { data: 'total_poin', name: 'total_poin' },
                 { data: 'action', name: 'action', orderable: false, searchable: false, className: 'text-end' }
             ],

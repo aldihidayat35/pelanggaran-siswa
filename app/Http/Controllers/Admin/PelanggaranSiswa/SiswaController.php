@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
 
 class SiswaController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, FaceRecognitionService $frService)
     {
         $query = Siswa::withSum('pelanggaranSiswa as total_poin', 'poin');
 
@@ -43,10 +43,13 @@ class SiswaController extends Controller
             if ($request->filled('order.0.column')) {
                 $colIndex = $request->input('order.0.column');
                 $colDir = $request->input('order.0.dir', 'desc');
-                $columns = ['id', 'nama', 'nis', 'kelas', 'status', 'total_poin', 'id'];
+                $columns = ['id', 'nama', 'nis', 'kelas', 'status', 'face_registered_label', 'total_poin', 'id'];
                 $colName = $columns[$colIndex] ?? 'id';
                 if ($colName === 'total_poin') {
                     $query->orderBy('total_poin', $colDir);
+                } elseif ($colName === 'face_registered_label') {
+                    // We compute face_registered client-side via dataset check
+                    $query->orderBy('id', $colDir);
                 } else {
                     $query->orderBy($colName, $colDir);
                 }
@@ -57,6 +60,16 @@ class SiswaController extends Controller
             $start = $request->input('start', 0);
             $length = $request->input('length', 10);
             $siswa = $query->skip($start)->take($length)->get();
+
+            // Pre-fetch face_registered status for all students in this page
+            $faceStatusCache = [];
+            foreach ($siswa as $s) {
+                $ds = $frService->getStudentDatasetStatus($s->id);
+                $faceStatusCache[$s->id] = [
+                    'registered' => (bool) ($ds['image_count'] ?? 0),
+                    'image_count' => (int) ($ds['image_count'] ?? 0),
+                ];
+            }
 
             $data = [];
             foreach ($siswa as $index => $s) {
@@ -71,15 +84,17 @@ class SiswaController extends Controller
                     : '';
                 $csrf = csrf_field();
                 $methodDelete = method_field('DELETE');
-                
-                $statusPembinaan = $s->status_pembinaan;
 
+                $statusPembinaan = $s->status_pembinaan;
                 $avatarHtml = '';
                 if ($s->foto) {
                     $avatarHtml = '<div class="symbol-label"><img src="' . asset('storage/' . $s->foto) . '" alt="' . e($s->nama) . '" class="w-100"/></div>';
                 } else {
                     $avatarHtml = '<div class="symbol-label fs-3 bg-light-primary text-primary">' . strtoupper(substr($s->nama, 0, 1)) . '</div>';
                 }
+
+                $faceInfo = $faceStatusCache[$s->id];
+                $faceRegistered = $faceInfo['registered'];
 
                 $data[] = [
                     'DT_RowIndex' => $start + $index + 1,
@@ -96,6 +111,9 @@ class SiswaController extends Controller
                         <span class="text-muted fs-8">' . e($s->nisn ?? '-') . '</span>',
                     'kelas' => e($s->kelas),
                     'status' => '<span class="badge badge-light-' . ($s->status === 'Aktif' ? 'success' : 'danger') . '">' . $s->status . '</span>',
+                    'face_registered_label' => $faceRegistered
+                        ? '<span class="badge badge-light-success"><i class="ki-duotone ki-shield-check me-1"></i>Wajah Terdaftar</span>'
+                        : '<span class="badge badge-light-danger"><i class="ki-duotone ki-shield-cross me-1"></i>Wajah Belum Terdaftar</span>',
                     'total_poin' => '
                         <span class="badge ' . $statusPembinaan['badge'] . '">' . ($s->total_poin ?? 0) . ' Poin</span>
                         <span class="text-muted fs-8 d-block">' . e($statusPembinaan['label']) . '</span>',
@@ -150,7 +168,7 @@ class SiswaController extends Controller
         return view('admin.pelanggaran-siswa.siswa.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, FaceRecognitionService $frService)
     {
         $validated = $request->validate([
             'nis' => ['required', 'string', 'max:20', 'unique:siswa,nis'],
@@ -165,6 +183,7 @@ class SiswaController extends Controller
             'alamat' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'status' => ['required', Rule::in(['Aktif', 'Tidak Aktif'])],
+            'face_image' => ['nullable', 'string'],
         ]);
 
         if ($request->hasFile('foto')) {
@@ -172,8 +191,16 @@ class SiswaController extends Controller
         }
 
         $validated['whatsapp_token'] = Str::random(40);
+        $validated['face_registered'] = false;
 
-        Siswa::create($validated);
+        $siswa = Siswa::create($validated);
+
+        // Auto-enroll face if image provided from webcam capture
+        if ($request->filled('face_image')) {
+            $frService->enrollFace($siswa->id, $request->input('face_image'));
+            $validated['face_registered'] = true;
+            $siswa->update(['face_registered' => true]);
+        }
 
         return redirect()->route('pelanggaran-siswa.siswa.index')
             ->with('success', 'Data siswa berhasil ditambahkan.');
@@ -188,12 +215,15 @@ class SiswaController extends Controller
         return view('admin.pelanggaran-siswa.siswa.show', compact('siswa', 'riwayat'));
     }
 
-    public function edit(Siswa $siswa)
+    public function edit(Siswa $siswa, FaceRecognitionService $frService)
     {
-        return view('admin.pelanggaran-siswa.siswa.edit', compact('siswa'));
+        $dataset = $frService->getStudentDatasetStatus($siswa->id);
+        $health = $frService->health();
+
+        return view('admin.pelanggaran-siswa.siswa.edit', compact('siswa', 'dataset', 'health'));
     }
 
-    public function update(Request $request, Siswa $siswa)
+    public function update(Request $request, Siswa $siswa, FaceRecognitionService $frService)
     {
         $validated = $request->validate([
             'nis' => ['required', 'string', 'max:20', Rule::unique('siswa', 'nis')->ignore($siswa->id)],
@@ -208,6 +238,7 @@ class SiswaController extends Controller
             'alamat' => ['nullable', 'string'],
             'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'status' => ['required', Rule::in(['Aktif', 'Tidak Aktif'])],
+            'face_image' => ['nullable', 'string'],
         ]);
 
         if ($request->hasFile('foto')) {
@@ -218,6 +249,14 @@ class SiswaController extends Controller
         }
 
         $siswa->update($validated);
+
+        // Auto-enroll face if image provided from webcam capture
+        if ($request->filled('face_image')) {
+            $result = $frService->enrollFace($siswa->id, $request->input('face_image'));
+            if (($result['success'] ?? false) === true) {
+                $siswa->update(['face_registered' => true]);
+            }
+        }
 
         return redirect()->route('pelanggaran-siswa.siswa.index')
             ->with('success', 'Data siswa berhasil diperbarui.');
@@ -283,6 +322,10 @@ class SiswaController extends Controller
         ]);
 
         $result = $frService->enrollFace($siswa->id, $request->image);
+
+        if (($result['success'] ?? false) === true) {
+            $siswa->update(['face_registered' => true]);
+        }
 
         return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }
