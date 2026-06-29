@@ -444,22 +444,25 @@ document.addEventListener('DOMContentLoaded', function () {
     // Multi-frame voting state. Buffer pendek (6) + WIN_COUNT 4 = median lock
     // ~4-5s dengan scan interval 700ms. Margin 2 challenger tetap dipertahankan
     // untuk anti-flicker.
-    const FRAME_BUFFER_SIZE = 6;
-    const VOTE_MIN_WIN = 4;
-    const STRICT_DISTANCE = 58.0;
-    const MAX_DISTANCE_SPREAD = 12.0;
-    const MIN_QUALITY_SCORE = 0.55;
-    const MIN_CANDIDATE_MARGIN = 6.0;
+    const FRAME_BUFFER_SIZE = 5;
+    const VOTE_MIN_WIN = 3;
+    const STRICT_DISTANCE = 62.0;
+    const ADAPTIVE_DISTANCE = 70.0;
+    const LOOSE_DISTANCE = 76.0;
+    const MAX_DISTANCE_SPREAD = 14.0;
+    const MIN_QUALITY_SCORE = 0.50;
+    const HIGH_QUALITY_SCORE = 0.72;
+    const MIN_CANDIDATE_MARGIN = 4.0;
     // Konstanta tambahan untuk voting upgrade: time-decay + confirmation hold.
     // Voting pass harus stabil selama VOTE_CONFIRM_HOLD_MS dan diulang
     // VOTE_CONFIRM_PASSES kali sebelum lock benar-benar fire.
-    const VOTE_TIME_DECAY_MS = 2500;
-    const VOTE_CONFIRM_HOLD_MS = 350;
-    const VOTE_CONFIRM_PASSES = 2;
+    const VOTE_TIME_DECAY_MS = 3200;
+    const VOTE_CONFIRM_HOLD_MS = 150;
+    const VOTE_CONFIRM_PASSES = 1;
     // Scan interval adaptif: idle (tidak ada wajah) = IDLE_SCAN_INTERVAL_MS,
     // face terlihat = FAST_SCAN_INTERVAL_MS.
-    const IDLE_SCAN_INTERVAL_MS = 1200;
-    const FAST_SCAN_INTERVAL_MS = 650;
+    const IDLE_SCAN_INTERVAL_MS = 900;
+    const FAST_SCAN_INTERVAL_MS = 420;
     let currentScanIntervalMs = IDLE_SCAN_INTERVAL_MS;
     let frameBuffer = []; // each entry: { studentId, distance, siswa, ts, ... }
     let lastVotedStudentId = null;
@@ -505,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function () {
             label = 'Terkonfirmasi';
             votingCircle.classList.add('is-locked');
         } else if (
-            vote.avgDistance >= STRICT_DISTANCE * 0.85
+            vote.avgDistance >= ADAPTIVE_DISTANCE
             || vote.distanceSpread > MAX_DISTANCE_SPREAD * 0.85
         ) {
             label = 'Belum stabil';
@@ -663,7 +666,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 brightnessBadge,
                 'Cahaya',
                 brightValue,
-                brightness >= 45 && brightness <= 215 ? 'success' : 'danger'
+                brightness >= 35 && brightness <= 215 ? 'success' : 'danger'
             );
         }
 
@@ -671,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function () {
             setBadgeState(blurBadge, 'Stabil', '-', 'secondary');
         } else {
             const blurValue = Number(blurScore).toFixed(0);
-            setBadgeState(blurBadge, 'Stabil', blurValue, blurScore >= 35 ? 'success' : 'danger');
+            setBadgeState(blurBadge, 'Stabil', blurValue, blurScore >= 25 ? 'success' : 'danger');
         }
     }
 
@@ -780,14 +783,37 @@ document.addEventListener('DOMContentLoaded', function () {
             .filter(([sid]) => parseInt(sid, 10) !== winnerId)
             .sort((a, b) => b[1].count - a[1].count)[0] || null;
         const challengerCount = challenger ? challenger[1].count : 0;
-        const stableMajority = winnerCount >= VOTE_MIN_WIN && (winnerCount - challengerCount) >= 2;
-        const readyToLock = stableMajority && avgDistance < STRICT_DISTANCE && distanceSpread <= MAX_DISTANCE_SPREAD;
+        const winnerFrames = frameBuffer.filter(f => f.studentId === winnerId);
+        const avgQuality = winnerFrames
+            .map(f => Number(f.qualityScore ?? 0))
+            .filter(v => !isNaN(v))
+            .reduce((sum, value, _, arr) => sum + value / arr.length, 0);
+        const margins = winnerFrames
+            .map(f => f.candidateMargin)
+            .filter(v => v !== null && v !== undefined && !isNaN(v))
+            .map(Number);
+        const minCandidateMargin = margins.length ? Math.min(...margins) : null;
+
+        const stableMajority = winnerCount >= VOTE_MIN_WIN && (winnerCount - challengerCount) >= 1;
+        const highQualityLock = avgQuality >= HIGH_QUALITY_SCORE && avgDistance <= ADAPTIVE_DISTANCE;
+        const strictLock = avgDistance <= STRICT_DISTANCE;
+        const looseButCleanLock = avgQuality >= 0.82
+            && avgDistance <= LOOSE_DISTANCE
+            && distanceSpread <= 8
+            && challengerCount === 0;
+        const marginOk = minCandidateMargin === null || minCandidateMargin >= MIN_CANDIDATE_MARGIN;
+        const readyToLock = stableMajority
+            && marginOk
+            && distanceSpread <= MAX_DISTANCE_SPREAD
+            && (strictLock || highQualityLock || looseButCleanLock);
 
         return {
             studentId: winnerId,
             count: winnerCount,
             avgDistance: avgDistance,
             distanceSpread: distanceSpread,
+            avgQuality: avgQuality,
+            minCandidateMargin: minCandidateMargin,
             challengerCount: challengerCount,
             totalFrames: frameBuffer.length,
             readyToLock: readyToLock
@@ -802,11 +828,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (vote.readyToLock) {
             updateStatus('Konfirmasi Terpenuhi',
-                `Konsisten: ${vote.count}/${vote.totalFrames} frame cocok (avg distance ${vote.avgDistance.toFixed(1)}).`,
+                `Konsisten: ${vote.count}/${vote.totalFrames} frame cocok (avg distance ${vote.avgDistance.toFixed(1)}, kualitas ${Math.round((vote.avgQuality || 0) * 100)}%).`,
                 'success');
         } else {
             updateStatus('Konfirmasi identitas',
-                `Sedang mengonfirmasi: ${vote.count}/${vote.totalFrames} frame cocok, avg distance ${vote.avgDistance.toFixed(1)}.`,
+                `Sedang mengonfirmasi: ${vote.count}/${vote.totalFrames} frame cocok, avg distance ${vote.avgDistance.toFixed(1)}. Dekatkan wajah bila belum selesai.`,
                 'primary');
         }
     }
@@ -921,13 +947,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            if (candidateMargin !== null && Number(candidateMargin) < MIN_CANDIDATE_MARGIN && matchLevel !== 'strict') {
+            const qualityScore = Number(res.quality_score ?? 1);
+            if (candidateMargin !== null && Number(candidateMargin) < MIN_CANDIDATE_MARGIN && matchLevel !== 'strict' && qualityScore < 0.85) {
                 clearFrameBuffer();
                 updateStatus('Wajah Belum Stabil', 'Kandidat wajah terlalu dekat. Dekatkan wajah dan ulangi scan.', 'warning');
                 return;
             }
 
-            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, candidateMargin: candidateMargin, siswa: siswa, recognized: true, ts: performance.now() });
+            frameBuffer.push({ studentId: studentId, distance: distance, matchStrength: matchStrength, matchLevel: matchLevel, candidateMargin: candidateMargin, qualityScore: qualityScore, siswa: siswa, recognized: true, ts: performance.now() });
             if (frameBuffer.length > FRAME_BUFFER_SIZE) frameBuffer.shift();
 
             // Live preview match strength dari frame terakhir (feedback real-time

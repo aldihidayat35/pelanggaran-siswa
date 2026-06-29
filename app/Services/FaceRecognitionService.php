@@ -91,6 +91,9 @@ class FaceRecognitionService
         if (isset($result['top_match']) && is_array($result['top_match'])) {
             $result['student_id'] = $result['top_match']['student_id'] ?? null;
             $result['distance'] = $result['top_match']['distance'] ?? null;
+            $result['best_distance'] = $result['top_match']['best_distance'] ?? null;
+            $result['distance_std'] = $result['top_match']['distance_std'] ?? null;
+            $result['prediction_votes'] = $result['top_match']['votes'] ?? null;
             $result['match_strength'] = $result['top_match']['match_strength'] ?? null;
         }
 
